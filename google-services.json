@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "525606314314",
+    "project_id": "relazo-crm",
+    "storage_bucket": "relazo-crm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525606314314:android:6a039949fe3c9efd4b61b3",
+        "android_client_info": {
+          "package_name": "com.relazo.crm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "525606314314-g38fdegd7n6modr4gojl0p72rt1ijbtd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMJBbEPFYFCrEpLRDBkHZSNiIhrgmGfJA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "525606314314-g38fdegd7n6modr4gojl0p72rt1ijbtd.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

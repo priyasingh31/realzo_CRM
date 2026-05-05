@@ -1,0 +1,83 @@
+{
+  "expo": {
+    "name": "Relazo CRM",
+    "slug": "relazo-crm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "relazo",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D1B2A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.relazo.crm"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D1B2A"
+      },
+      "package": "com.relazo.crm",
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.INTERNET",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_EXACT_ALARM"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png",
+      "name": "Relazo CRM",
+      "shortName": "Relazo",
+      "description": "Real Estate CRM for managing leads, deals, and properties"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1A9B6C",
+          "sounds": [
+            "./assets/notification.wav"
+          ]
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d5923db8-ce19-49ed-b1a2-fd246404eae1"
+      },
+      "firebaseApiKey": "AIzaSyAIaRfeBt-boVvXWZfkM5fPZ7t004QsOn0",
+      "firebaseAuthDomain": "relazo-crm.firebaseapp.com",
+      "firebaseProjectId": "relazo-crm",
+      "firebaseStorageBucket": "relazo-crm.firebasestorage.app",
+      "firebaseMessagingSenderId": "525606314314",
+      "firebaseAppId": "1:525606314314:web:eb1b6614356abf514b61b3",
+      "geminiApiKey": "AIzaSyBO0ux8SG9ohQHrh6Ge7tnK_oe7khnCNS4",
+      "router": {}
+    },
+    "owner": "inderaa8877"
+  }
+}

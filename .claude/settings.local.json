@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(firebase firestore:delete metaSync/1 metaSync/2 --project relazo-crm --force)",
+      "Bash(firebase firestore:delete --project relazo-crm \"metaSync/1\" --force)",
+      "Bash(firebase firestore:delete --project relazo-crm \"metaSync/2\" --force)",
+      "Bash(firebase deploy *)",
+      "Bash(eas init *)",
+      "Bash(npm run *)",
+      "Bash(npx firebase *)",
+      "Bash(node_modules/.bin/tsc --version)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "PowerShell(python graphify_ast.py)",
+      "PowerShell(python graphify_merge.py)",
+      "PowerShell(python graphify_part_c.py)",
+      "PowerShell(python --version)",
+      "PowerShell(pip show networkx 2>&1)",
+      "PowerShell(pip install \"networkx==3.5\" -q 2>&1)",
+      "PowerShell(python -c \"import networkx; print\\('networkx OK:', networkx.__version__\\)\")",
+      "PowerShell(pip install \"networkx==3.3\" -q 2>&1)",
+      "PowerShell(pip index versions networkx 2>&1)",
+      "PowerShell(pip install \"networkx==3.2.1\" -q 2>&1)",
+      "PowerShell(python graphify_build.py)",
+      "PowerShell(python graphify_label.py)",
+      "PowerShell(python graphify_html.py)",
+      "PowerShell(python graphify_bench.py)",
+      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; python graphify_bench.py)"
+    ]
+  }
+}

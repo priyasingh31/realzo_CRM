@@ -1,0 +1,150 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPERS ──────────────────────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    function isManager() {
+      return isAuthenticated() && getUserData().role == 'manager';
+    }
+
+    function isMIS() {
+      return isAuthenticated() && getUserData().role == 'mis';
+    }
+
+    function isSales() {
+      return isAuthenticated() && getUserData().role == 'sales';
+    }
+
+    function isAdminOrManager() {
+      return isAdmin() || isManager();
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // ─── USERS ────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Own profile or admin: full read access
+      // Managers/MIS: can read any user profile for team display
+      // Note: Firestore cannot mask individual fields — passwordPlain is only
+      //       kept out of client writes; admin SDK writes it server-side.
+      allow read: if isOwner(userId) || isAdmin() || isManager() || isMIS();
+
+      // Users cannot create their own profile from the client
+      // (profiles are created by the admin Cloud Function)
+      allow create: if isAdmin();
+
+      // Users can update their own non-sensitive fields; admins can update anything
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                            .hasAny(['role', 'passwordPlain', 'isActive', 'managerId']));
+
+      // Only admins can delete user documents
+      allow delete: if isAdmin();
+    }
+
+    // ─── LEADS ────────────────────────────────────────────────────────────────
+    match /leads/{leadId} {
+      // Sales see only their assigned leads; managers/admins/MIS see all
+      allow read: if isAdminOrManager() || isMIS()
+                  || (isSales() && resource.data.assignedTo == request.auth.uid);
+
+      // Any authenticated user can create leads (webhooks use Admin SDK)
+      allow create: if isAuthenticated();
+
+      // Sales update only their assigned leads; managers/admins update any
+      allow update: if isAdminOrManager()
+                    || (isSales() && resource.data.assignedTo == request.auth.uid);
+
+      // Only admins and managers can delete leads
+      allow delete: if isAdminOrManager();
+
+      // ─── LEAD ACTIVITIES (subcollection) ──────────────────────────────────
+      match /activities/{activityId} {
+        allow read: if isAdminOrManager() || isMIS()
+                    || (isSales() && get(/databases/$(database)/documents/leads/$(leadId)).data.assignedTo == request.auth.uid);
+        allow create: if isAuthenticated();
+        allow update, delete: if isAdmin();
+      }
+
+      // ─── LEAD COMMENTS (subcollection) ────────────────────────────────────
+      match /comments/{commentId} {
+        allow read: if isAdminOrManager() || isMIS()
+                    || (isSales() && get(/databases/$(database)/documents/leads/$(leadId)).data.assignedTo == request.auth.uid);
+        allow create: if isAuthenticated();
+        allow update: if isAdmin()
+                      || (isAuthenticated() && resource.data.authorId == request.auth.uid);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ─── PROJECTS ─────────────────────────────────────────────────────────────
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdminOrManager();
+      allow delete: if isAdmin();
+    }
+
+    // ─── DEALS ────────────────────────────────────────────────────────────────
+    match /deals/{dealId} {
+      allow read: if isAdminOrManager() || isMIS()
+                  || (isSales() && resource.data.assignedTo == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update: if isAdminOrManager()
+                    || (isSales() && resource.data.assignedTo == request.auth.uid);
+      allow delete: if isAdminOrManager();
+    }
+
+    // ─── PROPERTIES ───────────────────────────────────────────────────────────
+    match /properties/{propertyId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdminOrManager();
+      allow delete: if isAdmin();
+    }
+
+    // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated()
+                  && (resource.data.userId == null
+                      || resource.data.userId == request.auth.uid
+                      || isAdminOrManager());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin();
+    }
+
+    // ─── META SYNC STATE ──────────────────────────────────────────────────────
+    match /metaSync/{accountId} {
+      allow read, write: if isAdminOrManager();
+    }
+
+    // ─── PIPELINE STAGES CONFIG (admin only) ─────────────────────────────────
+    match /config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ─── TEAM INVITES ─────────────────────────────────────────────────────────
+    match /invites/{inviteId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
