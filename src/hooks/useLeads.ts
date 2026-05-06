@@ -68,8 +68,8 @@ export function useUpdateLeadStatus() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: LeadStatus }) =>
-      updateLeadStatus(id, status),
+    mutationFn: ({ id, status, closureDate }: { id: string; status: LeadStatus; closureDate?: string }) =>
+      updateLeadStatus(id, status, closureDate),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: LEADS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: LEAD_QUERY_KEY(id) });

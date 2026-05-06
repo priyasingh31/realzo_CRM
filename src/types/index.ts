@@ -57,7 +57,9 @@ export type LeadStatus =
   | 'closed_won'
   | 'dead'
   | 'invalid'
-  | 'qualified';
+  | 'qualified'
+  | 'rnr'
+  | 'switch_off';
 
 export interface Lead {
   id: string;

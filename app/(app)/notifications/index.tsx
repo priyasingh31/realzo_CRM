@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  ToastAndroid, Platform, Share,
+  Platform, Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
@@ -158,10 +158,18 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const router  = useRouter();
   const { user } = useAuthStore();
+  const params  = useLocalSearchParams<{ tab?: string }>();
 
   const [leads, setLeads]   = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState<TabKey>('new');
+  const [tab, setTab]         = useState<TabKey>(params.tab === 'missed' ? 'missed' : 'new');
+
+  // Keep tab in sync if navigated to with a different tab param
+  useEffect(() => {
+    if (params.tab === 'missed' || params.tab === 'new') {
+      setTab(params.tab);
+    }
+  }, [params.tab]);
 
   const role    = user?.role;
   const isAdmin = role === 'admin' || role === 'manager';

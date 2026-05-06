@@ -9,9 +9,9 @@ export function useResponsive() {
   const isTablet  = width >= 768 && width < 1024;
   const isDesktop = width >= 1024;
 
-  // Metric card grid: 4 cols desktop, 3 tablet, 2 mobile
+  // Metric card grid: 4 cols on tablet+, 2 on mobile (avoids orphan on 3-col)
   const metricColWidth: string =
-    isDesktop ? '25%' : isTablet ? '33.33%' : '50%';
+    isDesktop || isTablet ? '25%' : '50%';
 
   // Source card flex basis: more cols on wider screens
   const sourceColBasis: string =

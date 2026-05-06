@@ -27,7 +27,7 @@ import { LeadStatus } from '@/types';
 
 const STAGES: LeadStatus[] = [
   'new', 'assigned', 'contacted', 'interested', 'not_interested',
-  'follow_up', 'site_visit_scheduled', 'site_visit_done',
+  'rnr', 'switch_off', 'follow_up', 'site_visit_scheduled', 'site_visit_done',
   'negotiation', 'closed_won', 'dead', 'invalid',
 ];
 
@@ -37,6 +37,7 @@ const STAGE_COLORS: Record<LeadStatus, string> = {
   site_visit_scheduled: '#0891B2', site_visit_done: '#0D9488',
   negotiation: '#EA580C', closed_won: '#16A34A', dead: '#6B7280',
   invalid: '#9CA3AF', qualified: '#0D9488',
+  rnr: '#F43F5E', switch_off: '#6366F1',
 };
 
 const META_ACC_COLORS: Record<number, string> = { 1: '#1877F2', 2: '#0B5ED7', 3: '#0353A4' };
@@ -115,7 +116,7 @@ export default function LeadDetailScreen() {
 
   const handleStatusChange = async (status: LeadStatus) => {
     try {
-      await updateStatus({ id, status });
+      await updateStatus({ id, status, closureDate: lead.closureDate });
       Toast.show({ type: 'success', text1: 'Status Updated', text2: status.replace(/_/g, ' ') });
     } catch {
       Toast.show({ type: 'error', text1: 'Update Failed' });

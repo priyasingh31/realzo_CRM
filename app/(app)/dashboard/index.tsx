@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { useResponsive, webContainer } from '@/utils/responsive';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
@@ -14,6 +14,7 @@ import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing, formatCurrency } from '@/constants/theme';
 import {
   getAdminDashboardMetrics, getSalesDashboardMetrics, getAllManagersSummary,
+  getLeadCategoryMetrics, LeadCategoryMetrics,
 } from '@/services/analyticsService';
 import { AdminDashboardMetrics, SalesDashboardMetrics } from '@/types';
 import { fullSyncAllMetaAccounts, syncAllMetaAccounts } from '@/services/metaLeadsService';
@@ -31,75 +32,119 @@ function SalesDashboard() {
   const { user } = useAuthStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { metricColWidth } = useResponsive();
+  const { isMobile } = useResponsive();
   const [metrics, setMetrics] = useState<SalesDashboardMetrics | null>(null);
+  const [categoryMetrics, setCategoryMetrics] = useState<LeadCategoryMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const load = async () => {
     if (!user?.uid) return;
-    try { setMetrics(await getSalesDashboardMetrics(user.uid)); }
-    catch (e) { console.error(e); }
+    try {
+      const [m, cat] = await Promise.all([
+        getSalesDashboardMetrics(user.uid),
+        getLeadCategoryMetrics(user.uid),
+      ]);
+      setMetrics(m);
+      setCategoryMetrics(cat);
+    } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
-  useEffect(() => { load(); }, [user?.uid]);
+  useFocusEffect(useCallback(() => { load(); }, [user?.uid]));
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={styles.salesHeader}>
-        <View>
-          <Text style={styles.greeting}>{greeting},</Text>
-          <Text style={styles.userName}>{user?.displayName?.split(' ')[0]} 👋</Text>
+    <View style={styles.screen}>
+      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>{greeting} 👋</Text>
+          <Text style={styles.userName}>{user?.displayName?.split(' ')[0]}</Text>
           <Text style={styles.dateText}>{format(new Date(), 'EEEE, MMM d')}</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/settings')} style={styles.avatarBtn}>
-          <Text style={styles.avatarLetter}>{user?.displayName?.charAt(0)}</Text>
+        <TouchableOpacity onPress={() => router.push('/settings')} style={styles.avatarBtn} activeOpacity={0.8}>
+          <Text style={styles.avatarLetter}>{user?.displayName?.charAt(0)?.toUpperCase()}</Text>
         </TouchableOpacity>
       </LinearGradient>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         <View style={webContainer}>
-          {loading ? <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} /> : <>
+          {loading ? <ActivityIndicator color={Colors.primary} style={styles.loader} /> : <>
+
+            {/* Missed follow-ups alert */}
             {(metrics?.missedFollowUps ?? 0) > 0 && (
-              <TouchableOpacity style={styles.alertBanner} onPress={() => router.push({ pathname: '/leads', params: { filter: 'missed' } })}>
-                <Ionicons name="warning-outline" size={18} color={Colors.white} />
-                <Text style={styles.alertText}>{metrics!.missedFollowUps} missed follow-up{metrics!.missedFollowUps > 1 ? 's' : ''} — tap to view</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.white} />
+              <TouchableOpacity
+                style={styles.alertBanner}
+                onPress={() => router.push({ pathname: '/notifications', params: { tab: 'missed' } })}
+                activeOpacity={0.85}
+              >
+                <View style={styles.alertIconWrap}>
+                  <Ionicons name="warning" size={15} color="#B45309" />
+                </View>
+                <Text style={styles.alertText}>
+                  {metrics!.missedFollowUps} missed follow-up{metrics!.missedFollowUps > 1 ? 's' : ''} — tap to review
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color="#B45309" />
               </TouchableOpacity>
             )}
-            <View style={styles.grid}>
-              <MetricCard icon="add-circle"   label="New Today"    value={metrics?.myLeadsToday ?? 0}     color={Colors.primary} cardWidth={metricColWidth} onPress={() => router.push({ pathname: '/leads', params: { filter: 'today' } })} />
-              <MetricCard icon="calendar"     label="Follow-ups"   value={metrics?.pendingFollowUps ?? 0} color="#F59E0B"        cardWidth={metricColWidth} onPress={() => router.push({ pathname: '/leads', params: { filter: 'followup' } })} />
-              <MetricCard icon="home"         label="Visits Today" value={metrics?.todayVisits ?? 0}      color="#8B5CF6"        cardWidth={metricColWidth} onPress={() => router.push({ pathname: '/leads', params: { filter: 'visits' } })} />
-              <MetricCard icon="alert-circle" label="Missed"       value={metrics?.missedFollowUps ?? 0}  color={Colors.danger}  cardWidth={metricColWidth} onPress={() => router.push({ pathname: '/leads', params: { filter: 'missed' } })} />
-            </View>
-            <LinearGradient colors={[Colors.primary, '#0E7A55']} style={styles.monthCard}>
-              <View>
-                <Text style={styles.monthLabel}>This Month</Text>
-                <Text style={styles.monthValue}>{metrics?.closedThisMonth ?? 0} Closures</Text>
-                <Text style={styles.monthSub}>Revenue: {formatCurrency(metrics?.totalRevenue ?? 0)}</Text>
+
+            {/* Metrics */}
+            <SectionLabel title="Today's Overview" />
+            <MetricGrid isMobile={isMobile}>
+              <MetricCard icon="add-circle-outline"   label="New Today"   value={metrics?.myLeadsToday ?? 0}     color={Colors.primary} onPress={() => router.push({ pathname: '/leads', params: { filter: 'today' } })} />
+              <MetricCard icon="calendar-outline"     label="Follow-ups"  value={metrics?.pendingFollowUps ?? 0} color="#F59E0B"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'followup' } })} />
+              <MetricCard icon="home-outline"         label="Visits"      value={metrics?.todayVisits ?? 0}      color="#8B5CF6"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'visits' } })} />
+              <MetricCard icon="alert-circle-outline" label="Missed"      value={metrics?.missedFollowUps ?? 0}  color={Colors.danger}  onPress={() => router.push({ pathname: '/notifications', params: { tab: 'missed' } })} />
+            </MetricGrid>
+
+            {/* Month closures */}
+            <LinearGradient colors={[Colors.primary, '#0A7A52']} style={styles.featuredCard}>
+              <View style={styles.featuredLeft}>
+                <Text style={styles.featuredLabel}>TOTAL CLOSURES</Text>
+                <Text style={styles.featuredValue}>{metrics?.closedThisMonth ?? 0}</Text>
+                <Text style={styles.featuredSub}>Closed Won</Text>
               </View>
-              <Ionicons name="trophy-outline" size={48} color="rgba(255,255,255,0.25)" />
+              <Ionicons name="trophy-outline" size={48} color="rgba(255,255,255,0.2)" />
             </LinearGradient>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Assigned Leads</Text>
-              <Text style={styles.totalValue}>{metrics?.totalAssigned ?? 0}</Text>
+
+            {/* Total assigned leads — expandable */}
+            <TouchableOpacity
+              style={[styles.totalCard, showBreakdown && styles.totalCardExpanded]}
+              onPress={() => setShowBreakdown(!showBreakdown)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.totalCardLeft}>
+                <Text style={styles.totalLabel}>Total Assigned</Text>
+                <Text style={styles.totalValue}>{metrics?.totalAssigned ?? 0}</Text>
+              </View>
+              <View style={[styles.chevronCircle, showBreakdown && styles.chevronCircleActive]}>
+                <Ionicons name={showBreakdown ? 'chevron-up' : 'chevron-down'} size={14} color={showBreakdown ? Colors.primary : Colors.gray400} />
+              </View>
+            </TouchableOpacity>
+            {showBreakdown && (
+              <View style={styles.breakdownPanel}>
+                <BreakdownRow label="Prospects" sublabel="Connected" value={categoryMetrics?.prospects ?? 0} total={metrics?.totalAssigned ?? 1} color={Colors.primary} />
+                <BreakdownRow label="RNR" sublabel="Not Interested" value={categoryMetrics?.rnr ?? 0} total={metrics?.totalAssigned ?? 1} color="#F59E0B" />
+                <BreakdownRow label="Invalid" sublabel="Invalid Leads" value={categoryMetrics?.invalid ?? 0} total={metrics?.totalAssigned ?? 1} color={Colors.danger} />
+              </View>
+            )}
+
+            {/* Quick actions */}
+            <SectionLabel title="Quick Actions" />
+            <View style={styles.quickActionsRow}>
+              <QuickAction icon="add"                label="New Lead"  color={Colors.primary} onPress={() => router.push('/leads/new')} />
+              <QuickAction icon="call-outline"       label="Call Log"  color="#8B5CF6"        onPress={() => router.push('/leads')} />
+              <QuickAction icon="calendar-outline"   label="Schedule"  color="#F59E0B"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'followup' } })} />
+              <QuickAction icon="chatbubble-outline" label="WhatsApp"  color="#25D366"        onPress={() => router.push('/leads')} />
             </View>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.quickActions}>
-              <QuickAction icon="add"               label="New Lead"  color={Colors.primary} onPress={() => router.push('/leads/new')} />
-              <QuickAction icon="call"              label="Call Log"  color="#8B5CF6"        onPress={() => router.push('/leads')} />
-              <QuickAction icon="calendar-outline"  label="Schedule"  color="#F59E0B"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'followup' } })} />
-              <QuickAction icon="chatbubble-outline" label="WhatsApp" color="#25D366"        onPress={() => router.push('/leads')} />
-            </View>
+
           </>}
         </View>
       </ScrollView>
@@ -112,14 +157,14 @@ function AdminDashboard() {
   const { user } = useAuthStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { metricColWidth, sourceColBasis } = useResponsive();
+  const { isMobile, sourceColBasis } = useResponsive();
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [managers, setManagers] = useState<Awaited<ReturnType<typeof getAllManagersSummary>>>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const load = async (withSync = false, fullSync = false) => {
     if (withSync) {
-      // fire-and-forget background sync — no UI notification
       (fullSync ? fullSyncAllMetaAccounts() : syncAllMetaAccounts()).catch(console.error);
     }
     try {
@@ -132,105 +177,127 @@ function AdminDashboard() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
-  useEffect(() => { load(true, true); }, []); // full import on mount
+  useFocusEffect(useCallback(() => { load(true, false); }, []));
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={styles.adminHeader}>
-        <View>
-          <Text style={styles.greeting}>Admin Dashboard</Text>
+    <View style={styles.screen}>
+      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerLeft}>
+          <View style={styles.rolePill}>
+            <Text style={styles.rolePillText}>ADMIN</Text>
+          </View>
+          <Text style={styles.userName}>Overview</Text>
           <Text style={styles.dateText}>{format(new Date(), 'EEEE, MMM d yyyy')}</Text>
         </View>
-        <TouchableOpacity style={styles.roiBadge} onPress={() => router.push('/settings')} activeOpacity={0.8}>
-          <Ionicons name="person-circle-outline" size={18} color={Colors.white} />
-          <Text style={styles.roiValue} numberOfLines={1}>{user?.displayName?.split(' ')[0] ?? 'Admin'}</Text>
+        <TouchableOpacity onPress={() => router.push('/settings')} style={styles.avatarBtn} activeOpacity={0.8}>
+          <Text style={styles.avatarLetter}>{user?.displayName?.charAt(0)?.toUpperCase() ?? 'A'}</Text>
         </TouchableOpacity>
       </LinearGradient>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         <View style={webContainer}>
-        {loading ? <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} /> : <>
-          <View style={styles.grid}>
-            <MetricCard icon="people"       label="Total Leads"   value={metrics?.totalLeads ?? 0}  color={Colors.primary}  cardWidth={metricColWidth} onPress={() => router.push('/leads')} />
-            <MetricCard icon="add-circle"   label="Today's Leads" value={metrics?.leadsToday ?? 0}  color="#8B5CF6"         cardWidth={metricColWidth} onPress={() => router.push({ pathname: '/leads', params: { filter: 'today' } })} />
-            <MetricCard icon="calendar"     label="Follow-ups"   value={metrics?.todayFollowUps ?? 0}           color="#F59E0B"          cardWidth={metricColWidth} />
-            <MetricCard icon="home"         label="Visits"       value={metrics?.todayVisits ?? 0}              color="#06B6D4"          cardWidth={metricColWidth} />
-          </View>
-          <View style={styles.wideRow}>
-            <LinearGradient colors={[Colors.primary, '#0E7A55']} style={[styles.wideCard, { marginRight: 6 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.wideLabel}>Conversion Rate</Text>
-                <Text style={styles.wideValue}>{metrics?.conversionRate ?? 0}%</Text>
-                <Text style={styles.wideSub}>{metrics?.totalClosed ?? 0} closed deals</Text>
-              </View>
-              <Ionicons name="trending-up-outline" size={34} color="rgba(255,255,255,0.22)" />
-            </LinearGradient>
-            <LinearGradient colors={['#7C3AED', '#5B21B6']} style={[styles.wideCard, { marginLeft: 6 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.wideLabel}>CPL</Text>
-                <Text style={styles.wideValue}>₹{metrics?.cpl ?? 0}</Text>
-                <Text style={styles.wideSub}>Cost Per Lead</Text>
-              </View>
-              <Ionicons name="analytics-outline" size={34} color="rgba(255,255,255,0.22)" />
-            </LinearGradient>
-          </View>
-          {(metrics?.missedFollowUps ?? 0) > 0 && (
-            <TouchableOpacity style={styles.alertBanner} onPress={() => router.push({ pathname: '/leads', params: { filter: 'missed' } })}>
-              <Ionicons name="warning-outline" size={18} color={Colors.white} />
-              <Text style={styles.alertText}>{metrics?.missedFollowUps} missed follow-ups across team</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors.white} />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.sectionTitle}>Leads by Source</Text>
-          <View style={styles.sourceCards}>
-            <SourceCard label="Meta Acc 1" icon="logo-facebook"  value={metrics?.metaAccount1 ?? 0} color="#1877F2" cardBasis={sourceColBasis} />
-            <SourceCard label="Meta Acc 2" icon="logo-facebook"  value={metrics?.metaAccount2 ?? 0} color="#1565C0" cardBasis={sourceColBasis} />
-            <SourceCard label="Meta Acc 3" icon="logo-facebook"  value={metrics?.metaAccount3 ?? 0} color="#0D47A1" cardBasis={sourceColBasis} />
-            <SourceCard label="Google"     icon="logo-google"    value={metrics?.leadsBySource?.google ?? 0}    color="#EA4335" cardBasis={sourceColBasis} />
-            <SourceCard label="Uploaded"   icon="cloud-upload"   value={metrics?.leadsBySource?.uploaded ?? 0}  color="#F59E0B" cardBasis={sourceColBasis} />
-            <SourceCard label="WhatsApp"   icon="logo-whatsapp"  value={metrics?.leadsBySource?.whatsapp ?? 0}  color="#25D366" cardBasis={sourceColBasis} />
-          </View>
-          {/* Admin quick action — manage all users */}
-          <TouchableOpacity
-            style={styles.manageUsersCard}
-            onPress={() => router.push('/team/users' as any)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.manageUsersIcon}>
-              <Ionicons name="people" size={22} color={Colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.manageUsersTitle}>Manage Users</Text>
-              <Text style={styles.manageUsersSub}>Add, edit &amp; view credentials for all roles</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
-          </TouchableOpacity>
+          {loading ? <ActivityIndicator color={Colors.primary} style={styles.loader} /> : <>
 
-          <Text style={styles.sectionTitle}>Managers</Text>
-          {managers.map(mgr => (
+            {/* Metrics */}
+            <SectionLabel title="Today's Overview" />
+            <MetricGrid isMobile={isMobile}>
+              <MetricCard icon="people-outline"       label="Total Leads"   value={metrics?.totalLeads ?? 0}      color={Colors.primary} onPress={() => router.push('/leads')} />
+              <MetricCard icon="add-circle-outline"   label="Today's Leads" value={metrics?.leadsToday ?? 0}      color="#8B5CF6"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'today' } })} />
+              <MetricCard icon="calendar-outline"     label="Follow-ups"    value={metrics?.todayFollowUps ?? 0}  color="#F59E0B" />
+              <MetricCard icon="home-outline"         label="Visits"        value={metrics?.todayVisits ?? 0}     color="#06B6D4" />
+            </MetricGrid>
+
+            {/* KPI cards */}
+            <View style={styles.kpiRow}>
+              <LinearGradient colors={[Colors.primary, '#0A7A52']} style={styles.kpiCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kpiLabel}>CONVERSION</Text>
+                  <Text style={styles.kpiValue}>{metrics?.conversionRate ?? 0}%</Text>
+                  <Text style={styles.kpiSub}>{metrics?.totalClosed ?? 0} closed deals</Text>
+                </View>
+                <Ionicons name="trending-up-outline" size={32} color="rgba(255,255,255,0.22)" />
+              </LinearGradient>
+              <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.kpiCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kpiLabel}>CPL</Text>
+                  <Text style={styles.kpiValue}>₹{metrics?.cpl ?? 0}</Text>
+                  <Text style={styles.kpiSub}>Cost Per Lead</Text>
+                </View>
+                <Ionicons name="analytics-outline" size={32} color="rgba(255,255,255,0.22)" />
+              </LinearGradient>
+            </View>
+
+            {/* Alert */}
+            {(metrics?.missedFollowUps ?? 0) > 0 && (
+              <TouchableOpacity
+                style={styles.alertBanner}
+                onPress={() => router.push({ pathname: '/notifications', params: { tab: 'missed' } })}
+                activeOpacity={0.85}
+              >
+                <View style={styles.alertIconWrap}>
+                  <Ionicons name="warning" size={15} color="#B45309" />
+                </View>
+                <Text style={styles.alertText}>{metrics?.missedFollowUps} missed follow-ups across team</Text>
+                <Ionicons name="chevron-forward" size={14} color="#B45309" />
+              </TouchableOpacity>
+            )}
+
+            {/* Leads by source */}
+            <SectionLabel title="Leads by Source" />
+            <View style={styles.sourceGrid}>
+              <SourceCard label="Meta Acc 1" icon="logo-facebook"     value={metrics?.metaAccount1 ?? 0}                 color="#1877F2" cardBasis={sourceColBasis} />
+              <SourceCard label="Meta Acc 2" icon="logo-facebook"     value={metrics?.metaAccount2 ?? 0}                 color="#1565C0" cardBasis={sourceColBasis} />
+              <SourceCard label="Meta Acc 3" icon="logo-facebook"     value={metrics?.metaAccount3 ?? 0}                 color="#0D47A1" cardBasis={sourceColBasis} />
+              <SourceCard label="Google"     icon="logo-google"       value={metrics?.leadsBySource?.google ?? 0}        color="#EA4335" cardBasis={sourceColBasis} />
+              <SourceCard label="Uploaded"   icon="cloud-upload-outline" value={metrics?.leadsBySource?.uploaded ?? 0}   color="#F59E0B" cardBasis={sourceColBasis} />
+              <SourceCard label="WhatsApp"   icon="logo-whatsapp"     value={metrics?.leadsBySource?.whatsapp ?? 0}      color="#25D366" cardBasis={sourceColBasis} />
+            </View>
+
+            {/* Manage Users CTA */}
             <TouchableOpacity
-              key={mgr.uid}
-              style={styles.managerRow}
-              onPress={() => router.push({ pathname: '/team/[managerId]', params: { managerId: mgr.uid } })}
+              style={styles.ctaCard}
+              onPress={() => router.push('/team/users' as any)}
               activeOpacity={0.8}
             >
-              <View style={styles.mgrAvatar}><Text style={styles.mgrAvatarText}>{mgr.displayName.charAt(0)}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.mgrName}>{mgr.displayName}</Text>
-                <Text style={styles.mgrSub}>{mgr.region} · {mgr.totalAgents} agents</Text>
+              <View style={styles.ctaIconWrap}>
+                <Ionicons name="people" size={20} color={Colors.primary} />
               </View>
-              <Stat label="leads"  value={mgr.totalLeads}  />
-              <Stat label="closed" value={mgr.closures}    color={Colors.primary} />
-              <Ionicons name="chevron-forward" size={16} color={Colors.gray400} style={{ marginLeft: 4 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctaTitle}>Manage Users</Text>
+                <Text style={styles.ctaSub}>Add, edit & view credentials for all roles</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
             </TouchableOpacity>
-          ))}
-        </>}
-        </View>{/* webContainer */}
+
+            {/* Managers */}
+            <SectionLabel title="Managers" />
+            {managers.map(mgr => (
+              <TouchableOpacity
+                key={mgr.uid}
+                style={styles.managerRow}
+                onPress={() => router.push({ pathname: '/team/[managerId]', params: { managerId: mgr.uid } })}
+                activeOpacity={0.75}
+              >
+                <View style={styles.mgrAvatar}>
+                  <Text style={styles.mgrAvatarText}>{mgr.displayName.charAt(0)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mgrName}>{mgr.displayName}</Text>
+                  <Text style={styles.mgrSub}>{mgr.region} · {mgr.totalAgents} agents</Text>
+                </View>
+                <Stat label="leads"  value={mgr.totalLeads} />
+                <Stat label="closed" value={mgr.closures}   color={Colors.primary} />
+                <Ionicons name="chevron-forward" size={14} color={Colors.gray200} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            ))}
+
+          </>}
+        </View>
       </ScrollView>
     </View>
   );
@@ -241,6 +308,7 @@ function ManagerDashboard() {
   const { user } = useAuthStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isMobile } = useResponsive();
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -250,88 +318,145 @@ function ManagerDashboard() {
     catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
-  useEffect(() => { load(); }, [user?.uid]);
+  useFocusEffect(useCallback(() => { load(); }, [user?.uid]));
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={styles.adminHeader}>
-        <View>
-          <Text style={styles.greeting}>Manager Dashboard</Text>
-          <Text style={styles.userName}>{user?.displayName}</Text>
+    <View style={styles.screen}>
+      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerLeft}>
+          <View style={styles.rolePill}>
+            <Text style={styles.rolePillText}>MANAGER</Text>
+          </View>
+          <Text style={styles.userName}>{user?.displayName?.split(' ')[0]}</Text>
           <Text style={styles.dateText}>{format(new Date(), 'EEEE, MMM d')}</Text>
         </View>
-        <View style={styles.roiBadge}>
-          <Text style={styles.roiLabel}>Conv.</Text>
-          <Text style={styles.roiValue}>{metrics?.conversionRate ?? 0}%</Text>
+        <View style={styles.convBadge}>
+          <Text style={styles.convLabel}>Conv.</Text>
+          <Text style={styles.convValue}>{metrics?.conversionRate ?? 0}%</Text>
         </View>
       </LinearGradient>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} /> : <>
-          <View style={styles.grid}>
-            <MetricCard icon="people"       label="Total Leads"  value={metrics?.totalLeads ?? 0}      color={Colors.primary} onPress={() => router.push('/leads')} />
-            <MetricCard icon="calendar"     label="Follow-ups"   value={metrics?.todayFollowUps ?? 0}  color="#F59E0B" />
-            <MetricCard icon="home"         label="Visits"       value={metrics?.todayVisits ?? 0}     color="#06B6D4" />
-            <MetricCard icon="alert-circle" label="Missed"       value={metrics?.missedFollowUps ?? 0} color={Colors.danger} />
-          </View>
-          <View style={styles.wideRow}>
-            <LinearGradient colors={[Colors.primary, '#0E7A55']} style={[styles.wideCard, { marginRight: 6 }]}>
-              <Text style={styles.wideLabel}>Closed</Text>
-              <Text style={styles.wideValue}>{metrics?.totalClosed ?? 0}</Text>
-              <Text style={styles.wideSub}>{metrics?.conversionRate ?? 0}% rate</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#7C3AED', '#5B21B6']} style={[styles.wideCard, { marginLeft: 6 }]}>
-              <Text style={styles.wideLabel}>Revenue</Text>
-              <Text style={styles.wideValue}>{formatCurrency(metrics?.totalRevenue ?? 0)}</Text>
-              <Text style={styles.wideSub}>Team total</Text>
-            </LinearGradient>
-          </View>
-          <TouchableOpacity style={styles.teamBtn} onPress={() => router.push('/team')} activeOpacity={0.85}>
-            <Ionicons name="people-circle-outline" size={20} color={Colors.white} />
-            <Text style={styles.teamBtnText}>View My Team Performance</Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.white} />
-          </TouchableOpacity>
-        </>}
+        <View style={webContainer}>
+          {loading ? <ActivityIndicator color={Colors.primary} style={styles.loader} /> : <>
+
+            <SectionLabel title="Team Overview" />
+            <MetricGrid isMobile={isMobile}>
+              <MetricCard icon="people-outline"       label="Total Leads"  value={metrics?.totalLeads ?? 0}      color={Colors.primary} onPress={() => router.push('/leads')} />
+              <MetricCard icon="calendar-outline"     label="Follow-ups"   value={metrics?.todayFollowUps ?? 0}  color="#F59E0B" />
+              <MetricCard icon="home-outline"         label="Visits"       value={metrics?.todayVisits ?? 0}     color="#06B6D4" />
+              <MetricCard icon="alert-circle-outline" label="Missed"       value={metrics?.missedFollowUps ?? 0} color={Colors.danger} onPress={() => router.push({ pathname: '/notifications', params: { tab: 'missed' } })} />
+            </MetricGrid>
+
+            <View style={styles.kpiRow}>
+              <LinearGradient colors={[Colors.primary, '#0A7A52']} style={styles.kpiCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kpiLabel}>CLOSED</Text>
+                  <Text style={styles.kpiValue}>{metrics?.totalClosed ?? 0}</Text>
+                  <Text style={styles.kpiSub}>{metrics?.conversionRate ?? 0}% rate</Text>
+                </View>
+                <Ionicons name="checkmark-circle-outline" size={32} color="rgba(255,255,255,0.22)" />
+              </LinearGradient>
+              <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.kpiCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kpiLabel}>REVENUE</Text>
+                  <Text style={styles.kpiValue}>{formatCurrency(metrics?.totalRevenue ?? 0)}</Text>
+                  <Text style={styles.kpiSub}>Team total</Text>
+                </View>
+                <Ionicons name="cash-outline" size={32} color="rgba(255,255,255,0.22)" />
+              </LinearGradient>
+            </View>
+
+            <TouchableOpacity style={styles.ctaCard} onPress={() => router.push('/team')} activeOpacity={0.8}>
+              <View style={styles.ctaIconWrap}>
+                <Ionicons name="people-circle-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctaTitle}>My Team Performance</Text>
+                <Text style={styles.ctaSub}>View all agents and their stats</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
+            </TouchableOpacity>
+
+          </>}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-// ─── Reusable components ──────────────────────────────────────────────────────
-function MetricCard({ icon, label, value, color, onPress, cardWidth }: { icon: string; label: string; value: number; color: string; onPress?: () => void; cardWidth?: string | number }) {
+// ─── Shared sub-components ────────────────────────────────────────────────────
+
+function MetricGrid({ children, isMobile }: { children: React.ReactNode; isMobile: boolean }) {
+  const cards = React.Children.toArray(children);
+  if (!isMobile) {
+    return <View style={styles.metricGridWide}>{cards}</View>;
+  }
   return (
-    <TouchableOpacity style={[styles.metricCard, cardWidth !== undefined && { width: cardWidth as any }]} onPress={onPress} activeOpacity={onPress ? 0.8 : 1}>
-      <View style={[styles.metricIcon, { backgroundColor: color + '20' }]}>
-        <Ionicons name={icon as any} size={22} color={color} />
+    <View style={styles.metricGridNarrow}>
+      <View style={styles.metricRow}>{cards.slice(0, 2)}</View>
+      <View style={styles.metricRow}>{cards.slice(2, 4)}</View>
+    </View>
+  );
+}
+
+function MetricCard({ icon, label, value, color, onPress }: {
+  icon: string; label: string; value: number; color: string; onPress?: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.metricCard} onPress={onPress} activeOpacity={onPress ? 0.75 : 1}>
+      <View style={styles.metricCardTop}>
+        <Text style={styles.metricLabel}>{label}</Text>
+        {onPress && <Ionicons name="chevron-forward" size={11} color={Colors.gray200} />}
       </View>
       <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+      <View style={[styles.metricIconBadge, { backgroundColor: color + '18' }]}>
+        <Ionicons name={icon as any} size={16} color={color} />
+      </View>
     </TouchableOpacity>
   );
 }
-function SourceCard({ label, icon, value, color, cardBasis }: { label: string; icon: string; value: number; color: string; cardBasis?: string }) {
+
+function SectionLabel({ title }: { title: string }) {
   return (
-    <View style={[styles.sourceCard, { borderLeftColor: color }, cardBasis !== undefined && { flexBasis: cardBasis as any }]}>
-      <Ionicons name={icon as any} size={18} color={color} />
+    <View style={styles.sectionLabel}>
+      <Text style={styles.sectionLabelText}>{title}</Text>
+    </View>
+  );
+}
+
+function SourceCard({ label, icon, value, color, cardBasis }: {
+  label: string; icon: string; value: number; color: string; cardBasis?: string;
+}) {
+  return (
+    <View style={[styles.sourceCard, { borderTopColor: color }, cardBasis !== undefined && { flexBasis: cardBasis as any }]}>
+      <View style={[styles.sourceIconWrap, { backgroundColor: color + '18' }]}>
+        <Ionicons name={icon as any} size={14} color={color} />
+      </View>
       <Text style={styles.sourceValue}>{value}</Text>
       <Text style={styles.sourceLabel}>{label}</Text>
     </View>
   );
 }
-function QuickAction({ icon, label, color, onPress }: { icon: string; label: string; color: string; onPress: () => void }) {
+
+function QuickAction({ icon, label, color, onPress }: {
+  icon: string; label: string; color: string; onPress: () => void;
+}) {
   return (
-    <TouchableOpacity style={styles.qaBtn} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.qaIcon, { backgroundColor: color + '20' }]}>
+    <TouchableOpacity style={styles.qaBtn} onPress={onPress} activeOpacity={0.75}>
+      <View style={[styles.qaIcon, { backgroundColor: color + '18' }]}>
         <Ionicons name={icon as any} size={22} color={color} />
       </View>
       <Text style={styles.qaLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
+
 function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
     <View style={styles.statBox}>
@@ -341,61 +466,502 @@ function Stat({ label, value, color }: { label: string; value: number; color?: s
   );
 }
 
+function BreakdownRow({ label, sublabel, value, total, color }: {
+  label: string; sublabel: string; value: number; total: number; color: string;
+}) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <View style={styles.breakdownItem}>
+      <View style={styles.breakdownItemHeader}>
+        <View style={[styles.breakdownDot, { backgroundColor: color }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.breakdownLabel}>{label}</Text>
+          <Text style={styles.breakdownSublabel}>{sublabel}</Text>
+        </View>
+        <Text style={styles.breakdownValue}>{value}</Text>
+        <Text style={styles.breakdownPct}>{pct}%</Text>
+      </View>
+      <View style={styles.breakdownBarBg}>
+        <View style={[styles.breakdownBarFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.gray50 },
   scroll: { flex: 1 },
-  salesHeader: { paddingHorizontal: Spacing.base, paddingVertical: Spacing.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  adminHeader: { paddingHorizontal: Spacing.base, paddingVertical: Spacing.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  greeting: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)', marginBottom: 2 },
-  userName: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.white, marginBottom: 4 },
-  dateText: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)' },
-  avatarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.white },
-  roiBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  roiLabel: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.7)' },
-  roiValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.white },
-  alertBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.danger, marginHorizontal: Spacing.base, marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg },
-  alertText: { flex: 1, color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: Spacing.base, paddingTop: Spacing.md, gap: Spacing.sm },
-  metricCard: { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing.md, alignItems: 'flex-start', borderWidth: 1, borderColor: Colors.gray100 },
-  metricIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
-  metricValue: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.navy },
-  metricLabel: { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 2 },
-  monthCard: { marginHorizontal: Spacing.base, marginTop: Spacing.sm, borderRadius: Radius.xl, padding: Spacing.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  monthLabel: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  monthValue: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.white },
-  monthSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: Spacing.base, marginTop: Spacing.base, backgroundColor: Colors.white, padding: Spacing.md, borderRadius: Radius.lg },
-  totalLabel: { fontSize: FontSize.sm, color: Colors.gray600 },
-  totalValue: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.navy },
-  syncingBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1877F2', marginHorizontal: Spacing.base, marginTop: Spacing.sm, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
-  syncingText: { fontSize: FontSize.xs, color: Colors.white, fontWeight: FontWeight.medium },
-  sectionTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray400, textTransform: 'uppercase', letterSpacing: 1, marginHorizontal: Spacing.base, marginTop: Spacing.lg, marginBottom: Spacing.sm },
-  quickActions: { flexDirection: 'row', justifyContent: 'space-around', marginHorizontal: Spacing.base, backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing.md },
-  qaBtn: { alignItems: 'center', gap: 6 },
-  qaIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  qaLabel: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.gray600 },
-  wideRow: { flexDirection: 'row', marginHorizontal: Spacing.base, marginTop: Spacing.sm, gap: Spacing.sm },
-  wideCard: { flex: 1, borderRadius: Radius.xl, padding: Spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 90 },
-  wideLabel: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  wideValue: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.white },
-  wideSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
-  sourceCards: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: Spacing.base, gap: Spacing.sm },
-  sourceCard: { flexBasis: '30%', flexGrow: 1, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.sm, alignItems: 'center', gap: 4, borderLeftWidth: 3, borderWidth: 1, borderColor: Colors.gray100 },
-  sourceValue: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.navy },
-  sourceLabel: { fontSize: 10, color: Colors.gray500 },
-  manageUsersCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, marginHorizontal: Spacing.base, marginBottom: Spacing.sm, borderRadius: Radius.xl, padding: Spacing.md, gap: Spacing.md, borderWidth: 1, borderColor: Colors.primary + '30' },
-  manageUsersIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  manageUsersTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.navy },
-  manageUsersSub: { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 2 },
-  managerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, marginHorizontal: Spacing.base, marginBottom: Spacing.sm, borderRadius: Radius.lg, padding: Spacing.md, gap: Spacing.sm, borderWidth: 1, borderColor: Colors.gray100 },
-  mgrAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  mgrAvatarText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primary },
-  mgrName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.navy },
-  mgrSub: { fontSize: FontSize.xs, color: Colors.gray400, marginTop: 1 },
-  statBox: { alignItems: 'center', minWidth: 44 },
-  statVal: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.navy },
-  statLbl: { fontSize: 10, color: Colors.gray500 },
-  teamBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, backgroundColor: Colors.primary, marginHorizontal: Spacing.base, marginTop: Spacing.lg, padding: Spacing.md, borderRadius: Radius.xl },
-  teamBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
+  loader: { marginTop: 60 },
+
+  // ── Header ──
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.xl,
+  },
+  headerLeft: { flex: 1 },
+  rolePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.primary + '28',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    marginBottom: Spacing.sm,
+  },
+  rolePillText: {
+    fontSize: 9,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+    letterSpacing: 1.2,
+  },
+  greeting: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 3,
+  },
+  userName: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginBottom: 3,
+  },
+  dateText: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.45)',
+  },
+  avatarBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.md,
+  },
+  avatarLetter: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+  convBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginLeft: Spacing.md,
+  },
+  convLabel: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.55)', marginBottom: 2 },
+  convValue: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.white },
+
+  // ── Section label ──
+  sectionLabel: {
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
+  },
+  sectionLabelText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray400,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+
+  // ── Alert banner ──
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: '#FFFBEB',
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.base,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  alertIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertText: {
+    flex: 1,
+    color: '#92400E',
+    fontWeight: FontWeight.medium,
+    fontSize: FontSize.sm,
+  },
+
+  // ── Metric grid ──
+  metricGridWide: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
+  },
+  metricGridNarrow: {
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+
+  // ── Metric card ──
+  metricCard: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    minHeight: 110,
+    justifyContent: 'space-between',
+  },
+  metricCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  metricLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    fontWeight: FontWeight.medium,
+    flex: 1,
+    lineHeight: 16,
+  },
+  metricValue: {
+    fontSize: FontSize['3xl'],
+    fontWeight: FontWeight.bold,
+    color: Colors.gray900,
+    marginVertical: Spacing.xs,
+    lineHeight: 36,
+  },
+  metricIconBadge: {
+    alignSelf: 'flex-start',
+    width: 30,
+    height: 30,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Featured card (month closures) ──
+  featuredCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.base,
+    borderRadius: Radius.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+  },
+  featuredLeft: { flex: 1 },
+  featuredLabel: {
+    fontSize: 9,
+    fontWeight: FontWeight.bold,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+  },
+  featuredValue: {
+    fontSize: FontSize['4xl'],
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    lineHeight: 44,
+  },
+  featuredSub: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.65)',
+    marginTop: 3,
+  },
+
+  // ── Total assigned leads card ──
+  totalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.sm,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  totalCardExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomColor: 'transparent',
+  },
+  totalCardLeft: { flex: 1 },
+  totalLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    fontWeight: FontWeight.medium,
+    marginBottom: 3,
+  },
+  totalValue: {
+    fontSize: FontSize['2xl'],
+    fontWeight: FontWeight.bold,
+    color: Colors.gray900,
+  },
+  chevronCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chevronCircleActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+
+  // ── Breakdown panel ──
+  breakdownPanel: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: Colors.gray100,
+    borderBottomLeftRadius: Radius.xl,
+    borderBottomRightRadius: Radius.xl,
+    padding: Spacing.base,
+    gap: Spacing.md,
+  },
+  breakdownItem: { gap: 6 },
+  breakdownItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  breakdownDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  breakdownLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray800,
+  },
+  breakdownSublabel: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    marginTop: 1,
+  },
+  breakdownValue: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray900,
+    minWidth: 32,
+    textAlign: 'right',
+  },
+  breakdownPct: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    minWidth: 32,
+    textAlign: 'right',
+  },
+  breakdownBarBg: {
+    height: 4,
+    backgroundColor: Colors.gray100,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  breakdownBarFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+
+  // ── Quick actions ──
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  qaBtn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  qaIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qaLabel: {
+    fontSize: 10,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray500,
+  },
+
+  // ── KPI cards (admin / manager) ──
+  kpiRow: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  kpiCard: {
+    flex: 1,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 94,
+  },
+  kpiLabel: {
+    fontSize: 9,
+    fontWeight: FontWeight.bold,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  kpiValue: {
+    fontSize: FontSize['2xl'],
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+  kpiSub: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 3,
+  },
+
+  // ── Source cards ──
+  sourceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: Spacing.base,
+    gap: Spacing.sm,
+  },
+  sourceCard: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    alignItems: 'center',
+    gap: 4,
+    borderTopWidth: 2,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  sourceIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceValue: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray900,
+  },
+  sourceLabel: {
+    fontSize: 9,
+    color: Colors.gray400,
+    fontWeight: FontWeight.medium,
+  },
+
+  // ── CTA card ──
+  ctaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.sm,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.primary + '28',
+  },
+  ctaIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray800,
+  },
+  ctaSub: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    marginTop: 2,
+  },
+
+  // ── Manager rows ──
+  managerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.lg,
+    padding: Spacing.base,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  mgrAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mgrAvatarText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+  },
+  mgrName: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray800,
+  },
+  mgrSub: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    marginTop: 1,
+  },
+  statBox: {
+    alignItems: 'center',
+    minWidth: 42,
+  },
+  statVal: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray800,
+  },
+  statLbl: {
+    fontSize: 9,
+    color: Colors.gray400,
+  },
 });

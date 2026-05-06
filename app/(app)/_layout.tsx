@@ -172,14 +172,6 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="pipeline/index"
-        options={{
-          title: 'Pipeline',
-          href: isAdmin || isManager ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="git-branch-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="notifications/index"
         options={{
           title: 'Alerts',

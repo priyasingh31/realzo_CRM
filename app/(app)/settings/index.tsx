@@ -9,8 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
-import { Header } from '@/components/ui/Header';
-import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import {
@@ -26,6 +24,7 @@ import {
   saveMetaConnection,
   type MetaConnection,
 } from '@/services/metaAuthService';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type VerifyState = {
   status: 'idle' | 'checking' | 'connected' | 'error';
@@ -51,7 +50,6 @@ export default function SettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  // Meta OAuth connection state
   const [metaConnection, setMetaConnection] = useState<MetaConnection | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -76,7 +74,7 @@ export default function SettingsScreen() {
     setConnecting(true);
     try {
       const partial = await connectMetaAccount();
-      if (!partial) return; // user cancelled
+      if (!partial) return;
 
       const full: MetaConnection = {
         ...partial,
@@ -86,7 +84,6 @@ export default function SettingsScreen() {
       await saveMetaConnection(full);
       setMetaConnection(full);
 
-      // Immediately sync leads from the newly connected pages
       setSyncing(true);
       setSyncResult(null);
       try {
@@ -214,7 +211,6 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
-      // Alert.alert onPress callbacks are unreliable on web — use native confirm instead
       const confirmed = window.confirm('Sign Out?\n\nAre you sure you want to sign out?');
       if (confirmed) logout();
     } else {
@@ -235,75 +231,46 @@ export default function SettingsScreen() {
     : Colors.primary;
 
   return (
-    <View style={styles.screen}>
-      <Header title="Settings" showBack />
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* ── Header ── */}
+      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
+      </LinearGradient>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 48 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Card */}
-        <Card style={styles.profileCard}>
+        {/* ── Profile ── */}
+        <View style={styles.profileCard}>
           <View style={styles.profileAvatar}>
-            <Text style={styles.avatarText}>{user?.displayName?.charAt(0) ?? 'U'}</Text>
+            <Text style={styles.avatarText}>{user?.displayName?.charAt(0)?.toUpperCase() ?? 'U'}</Text>
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user?.displayName}</Text>
             <Text style={styles.profileEmail}>{user?.email}</Text>
-            <View style={[styles.roleBadge, { backgroundColor: roleColor + '20' }]}>
+            <View style={[styles.roleBadge, { backgroundColor: roleColor + '18' }]}>
+              <View style={[styles.roleDot, { backgroundColor: roleColor }]} />
               <Text style={[styles.roleText, { color: roleColor }]}>{roleLabel}</Text>
             </View>
           </View>
-        </Card>
+          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.editBtn} activeOpacity={0.7}>
+            <Ionicons name="pencil-outline" size={16} color={Colors.gray400} />
+          </TouchableOpacity>
+        </View>
 
-        {/* Account Section */}
-        <SectionHeader title="Account" />
-        <Card padding="none" style={styles.menuCard}>
+        {/* ── Account ── */}
+        <SectionLabel title="Account" />
+        <View style={styles.menuGroup}>
           <MenuItem icon="person-outline" label="Edit Profile" onPress={() => {}} />
           <MenuItem icon="lock-closed-outline" label="Change Password" onPress={() => {}} divider />
           <MenuItem icon="notifications-outline" label="Notifications" onPress={() => {}} divider />
-        </Card>
+        </View>
 
-        {/* CRM Settings */}
-        <SectionHeader title="CRM Settings" />
-        <Card padding="none" style={styles.menuCard}>
-          <MenuItem
-            icon="people-outline"
-            label="Manage Team"
-            onPress={() => router.push('/team/users' as any)}
-            access={['admin']}
-            userRole={user?.role}
-          />
-          <MenuItem
-            icon="business-outline"
-            label="Projects & Lead Routing"
-            onPress={() => router.push('/settings/projects' as any)}
-            access={['admin']}
-            userRole={user?.role}
-            divider
-          />
-          <MenuItem
-            icon="funnel-outline"
-            label="Pipeline Stages"
-            onPress={() => router.push('/settings/pipeline' as any)}
-            access={['admin', 'manager']}
-            userRole={user?.role}
-            divider
-          />
-          <MenuItem
-            icon="tag-outline"
-            label="Lead Sources"
-            onPress={() => router.push('/settings/sources' as any)}
-            access={['admin']}
-            userRole={user?.role}
-            divider
-          />
-        </Card>
-
-        {/* Meta Ads Account */}
+        {/* ── Meta Ads Account ── */}
         {isAdminOrManager && (
           <>
-            <SectionHeader title="Meta Ads Account" />
+            <SectionLabel title="Meta Ads" />
             <MetaConnectionCard
               connection={metaConnection}
               connecting={connecting}
@@ -314,46 +281,11 @@ export default function SettingsScreen() {
           </>
         )}
 
-        {/* WhatsApp Accounts */}
-        <View style={styles.sectionRow}>
-          <SectionHeader title="WhatsApp Accounts" inline />
-          <TouchableOpacity onPress={verifyBothAccounts} style={styles.refreshBtn} disabled={verifying}>
-            {verifying
-              ? <ActivityIndicator size="small" color={Colors.primary} />
-              : <Ionicons name="refresh-outline" size={14} color={Colors.primary} />}
-            <Text style={styles.refreshText}>{verifying ? 'Checking…' : 'Refresh'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <WhatsAppAccountCard
-          label="Account 1 (Primary)"
-          phoneNumberId={WHATSAPP_ACCOUNTS[1].phoneNumberId}
-          businessId={WHATSAPP_ACCOUNTS[1].businessAccountId}
-          pageId={WHATSAPP_ACCOUNTS[1].pageId}
-          metaAppId={WHATSAPP_ACCOUNTS[1].metaAppId}
-          isActive={accounts[0].isActive}
-          verifyState={acc1Status}
-          accountNum={1}
-        />
-
-        <WhatsAppAccountCard
-          label="Account 2 (Secondary)"
-          phoneNumberId={WHATSAPP_ACCOUNTS[2].phoneNumberId}
-          businessId={WHATSAPP_ACCOUNTS[2].businessAccountId}
-          pageId={WHATSAPP_ACCOUNTS[2].pageId}
-          metaAppId={WHATSAPP_ACCOUNTS[2].metaAppId}
-          isActive={accounts[1].isActive}
-          verifyState={acc2Status}
-          accountNum={2}
-        />
-
-        {/* Meta Leads Sync */}
+        {/* ── Meta Leads Sync ── */}
         {isAdminOrManager && (
           <>
-            <View style={styles.sectionRow}>
-              <SectionHeader title="Meta Leads Sync" inline />
-            </View>
-            <Card style={styles.syncCard}>
+            <SectionLabel title="Meta Leads Sync" />
+            <View style={styles.syncCard}>
               <Text style={styles.syncNote}>
                 {metaConnection?.connected
                   ? `Connected as ${metaConnection.connectedByName || 'Meta User'} · ${metaConnection.pages.length} page${metaConnection.pages.length !== 1 ? 's' : ''}. Leads sync automatically.`
@@ -361,80 +293,88 @@ export default function SettingsScreen() {
               </Text>
 
               <View style={styles.syncTimestamps}>
-                <SyncRow label="Account 1 last sync" value={syncStatus.acc1} />
-                <SyncRow label="Account 2 last sync" value={syncStatus.acc2} />
+                <SyncRow label="Account 1" value={syncStatus.acc1} />
+                <SyncRow label="Account 2" value={syncStatus.acc2} />
               </View>
 
-              <TouchableOpacity
-                onPress={handleSyncNow}
-                disabled={syncing}
-                style={[styles.syncBtn, syncing && styles.syncBtnDisabled]}
-                activeOpacity={0.8}
-              >
-                {syncing
-                  ? <ActivityIndicator size="small" color={Colors.white} />
-                  : <Ionicons name="sync-outline" size={16} color={Colors.white} />
-                }
-                <Text style={styles.syncBtnText}>{syncing ? 'Syncing…' : 'Sync Now'}</Text>
-              </TouchableOpacity>
+              <View style={styles.syncActions}>
+                <TouchableOpacity
+                  onPress={handleSyncNow}
+                  disabled={syncing}
+                  style={[styles.syncBtn, syncing && styles.syncBtnDisabled]}
+                  activeOpacity={0.8}
+                >
+                  {syncing
+                    ? <ActivityIndicator size="small" color={Colors.white} />
+                    : <Ionicons name="sync-outline" size={15} color={Colors.white} />
+                  }
+                  <Text style={styles.syncBtnText}>{syncing ? 'Syncing…' : 'Sync Now'}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleTestMeta}
+                  disabled={testing}
+                  style={[styles.syncBtnSecondary, testing && styles.syncBtnDisabled]}
+                  activeOpacity={0.8}
+                >
+                  {testing
+                    ? <ActivityIndicator size="small" color={Colors.gray600} />
+                    : <Ionicons name="wifi-outline" size={15} color={Colors.gray600} />
+                  }
+                  <Text style={styles.syncBtnSecondaryText}>{testing ? 'Testing…' : 'Test API'}</Text>
+                </TouchableOpacity>
+              </View>
 
               {syncResult && (
-                <View style={[styles.syncResult, syncResult.startsWith('Sync failed') ? styles.syncResultError : styles.syncResultOk]}>
-                  <Text style={styles.syncResultText}>{syncResult}</Text>
+                <View style={[styles.resultBanner, syncResult.startsWith('Sync failed') ? styles.resultBannerError : styles.resultBannerOk]}>
+                  <Ionicons
+                    name={syncResult.startsWith('Sync failed') ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+                    size={14}
+                    color={syncResult.startsWith('Sync failed') ? Colors.danger : Colors.success}
+                  />
+                  <Text style={[styles.resultBannerText, { color: syncResult.startsWith('Sync failed') ? Colors.danger : Colors.success }]}>
+                    {syncResult}
+                  </Text>
                 </View>
               )}
-
-              <TouchableOpacity
-                onPress={handleTestMeta}
-                disabled={testing}
-                style={[styles.syncBtn, { backgroundColor: '#6B7280', marginTop: 8 }, testing && styles.syncBtnDisabled]}
-                activeOpacity={0.8}
-              >
-                {testing
-                  ? <ActivityIndicator size="small" color={Colors.white} />
-                  : <Ionicons name="wifi-outline" size={16} color={Colors.white} />
-                }
-                <Text style={styles.syncBtnText}>{testing ? 'Testing…' : 'Test Meta API'}</Text>
-              </TouchableOpacity>
 
               {testResult && (
-                <View style={[styles.syncResult, testResult.includes('ERROR') || testResult.includes('failed') ? styles.syncResultError : styles.syncResultOk]}>
-                  <Text style={styles.syncResultText}>{testResult}</Text>
+                <View style={[styles.resultBanner, testResult.includes('ERROR') || testResult.includes('failed') ? styles.resultBannerError : styles.resultBannerOk]}>
+                  <Ionicons
+                    name={testResult.includes('ERROR') || testResult.includes('failed') ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+                    size={14}
+                    color={testResult.includes('ERROR') || testResult.includes('failed') ? Colors.danger : Colors.success}
+                  />
+                  <Text style={[styles.resultBannerText, { color: testResult.includes('ERROR') || testResult.includes('failed') ? Colors.danger : Colors.success }]}>
+                    {testResult}
+                  </Text>
                 </View>
               )}
-            </Card>
+            </View>
           </>
         )}
 
-        {/* Integration Status */}
-        <SectionHeader title="Other Integrations" />
-        <Card style={styles.integrations}>
-          <IntegrationStatus icon="logo-google" label="Firebase / Firestore" status="connected" color="#EA4335" />
-          <IntegrationStatus icon="mail-outline" label="Gmail SMTP" status="setup_required" color="#EA4335" />
-          <IntegrationStatus icon="sparkles-outline" label="Gemini AI (Lead Scoring)" status="setup_required" color="#4285F4" />
-        </Card>
-
-        {/* About */}
-        <SectionHeader title="About" />
-        <Card padding="none" style={styles.menuCard}>
+        {/* ── About ── */}
+        <SectionLabel title="About" />
+        <View style={styles.menuGroup}>
           <MenuItem icon="information-circle-outline" label="Version 1.0.0" onPress={() => {}} chevron={false} />
           <MenuItem icon="document-text-outline" label="Privacy Policy" onPress={() => {}} divider />
           <MenuItem icon="shield-checkmark-outline" label="Terms of Service" onPress={() => {}} divider />
-        </Card>
+        </View>
 
-        {/* Logout */}
+        {/* ── Sign Out ── */}
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.8}>
-          <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
+          <Ionicons name="log-out-outline" size={18} color={Colors.danger} />
           <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.footer}>Relazo CRM · Firebase + Expo + Gemini AI</Text>
+        <Text style={styles.footer}>Relazo CRM · v1.0.0</Text>
       </ScrollView>
     </View>
   );
 }
 
-// ─── Meta Connection Card ─────────────────────────────────────────────────────
+// ─── Meta Connection Card ──────────────────────────────────────────────────────
 function MetaConnectionCard({
   connection, connecting, disconnecting, onConnect, onDisconnect,
 }: {
@@ -447,153 +387,75 @@ function MetaConnectionCard({
   const isConnected = connection?.connected && (connection.pages?.length ?? 0) > 0;
 
   return (
-    <Card style={styles.metaCard}>
-      {/* Header */}
-      <View style={styles.metaHeader}>
-        <View style={styles.metaIconWrap}>
-          <Ionicons name="logo-facebook" size={22} color="#1877F2" />
+    <View style={styles.integrationCard}>
+      <View style={styles.integrationHeader}>
+        <View style={styles.integrationIconWrap}>
+          <Ionicons name="logo-facebook" size={20} color="#1877F2" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.metaTitle}>Meta Ads</Text>
+          <Text style={styles.integrationTitle}>Meta Ads</Text>
           {isConnected && connection?.connectedByName ? (
-            <Text style={styles.metaSubtitle}>{connection.connectedByName}</Text>
-          ) : null}
+            <Text style={styles.integrationSubtitle}>{connection.connectedByName}</Text>
+          ) : (
+            <Text style={styles.integrationSubtitle}>Facebook & Instagram Ads</Text>
+          )}
         </View>
-        <View style={[styles.metaStatusDot, { backgroundColor: isConnected ? Colors.success : Colors.gray300 }]} />
-        <Text style={[styles.metaStatusLabel, { color: isConnected ? Colors.success : Colors.gray400 }]}>
-          {isConnected ? 'Connected' : 'Not connected'}
-        </Text>
+        <View style={[styles.statusPill, { backgroundColor: isConnected ? Colors.successLight : Colors.gray100 }]}>
+          <View style={[styles.statusDot, { backgroundColor: isConnected ? Colors.success : Colors.gray400 }]} />
+          <Text style={[styles.statusPillText, { color: isConnected ? Colors.success : Colors.gray500 }]}>
+            {isConnected ? 'Connected' : 'Not set up'}
+          </Text>
+        </View>
       </View>
 
-      {/* Connected pages list */}
       {isConnected && connection!.pages.length > 0 && (
-        <View style={styles.metaPages}>
+        <View style={styles.pagesList}>
           {connection!.pages.map(p => (
-            <View key={p.id} style={styles.metaPageRow}>
-              <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
-              <Text style={styles.metaPageName} numberOfLines={1}>{p.name}</Text>
-              <Text style={styles.metaPageCategory}>{p.category}</Text>
+            <View key={p.id} style={styles.pageRow}>
+              <Ionicons name="checkmark-circle" size={13} color={Colors.success} />
+              <Text style={styles.pageName} numberOfLines={1}>{p.name}</Text>
+              <Text style={styles.pageCategory}>{p.category}</Text>
             </View>
           ))}
         </View>
       )}
 
-      {/* Note when not connected */}
       {!isConnected && (
-        <Text style={styles.metaNote}>
+        <Text style={styles.integrationNote}>
           Log in with your Meta Business account to automatically import leads from all your Meta Ad campaigns.
         </Text>
       )}
 
-      {/* Action button */}
       {isConnected ? (
         <TouchableOpacity
           onPress={onDisconnect}
           disabled={disconnecting}
-          style={[styles.metaBtn, styles.metaBtnDanger, disconnecting && styles.metaBtnDisabled]}
+          style={[styles.integrationBtnOutline, disconnecting && styles.disabledBtn]}
           activeOpacity={0.8}
         >
           {disconnecting
             ? <ActivityIndicator size="small" color={Colors.danger} />
-            : <Ionicons name="log-out-outline" size={15} color={Colors.danger} />}
-          <Text style={[styles.metaBtnText, { color: Colors.danger }]}>
-            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+            : <Ionicons name="log-out-outline" size={14} color={Colors.danger} />}
+          <Text style={[styles.integrationBtnOutlineText, { color: Colors.danger }]}>
+            {disconnecting ? 'Disconnecting…' : 'Disconnect Account'}
           </Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
           onPress={onConnect}
           disabled={connecting}
-          style={[styles.metaBtn, styles.metaBtnPrimary, connecting && styles.metaBtnDisabled]}
+          style={[styles.integrationBtnFill, connecting && styles.disabledBtn]}
           activeOpacity={0.8}
         >
           {connecting
             ? <ActivityIndicator size="small" color={Colors.white} />
-            : <Ionicons name="logo-facebook" size={15} color={Colors.white} />}
-          <Text style={[styles.metaBtnText, { color: Colors.white }]}>
+            : <Ionicons name="logo-facebook" size={14} color={Colors.white} />}
+          <Text style={styles.integrationBtnFillText}>
             {connecting ? 'Opening Meta Login…' : 'Connect Meta Ads Account'}
           </Text>
         </TouchableOpacity>
       )}
-    </Card>
-  );
-}
-
-// ─── WhatsApp Account Card ─────────────────────────────────────────────────────
-function WhatsAppAccountCard({
-  label, phoneNumberId, businessId, pageId, metaAppId,
-  isActive, verifyState, accountNum,
-}: {
-  label: string;
-  phoneNumberId: string;
-  businessId: string;
-  pageId: string;
-  metaAppId: string;
-  isActive: boolean;
-  verifyState: VerifyState;
-  accountNum: 1 | 2;
-}) {
-  const statusColor =
-    verifyState.status === 'connected' ? Colors.success
-    : verifyState.status === 'error' ? Colors.danger
-    : Colors.gray400;
-
-  const statusLabel =
-    verifyState.status === 'connected' ? 'Connected'
-    : verifyState.status === 'error' ? 'Error'
-    : verifyState.status === 'checking' ? 'Checking...'
-    : 'Unknown';
-
-  return (
-    <Card style={styles.waCard}>
-      {/* Header row */}
-      <View style={styles.waCardHeader}>
-        <View style={styles.waIconWrap}>
-          <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.waCardLabel}>{label}</Text>
-          {verifyState.displayName && (
-            <Text style={styles.waDisplayName}>{verifyState.displayName}</Text>
-          )}
-        </View>
-        {isActive && (
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>ACTIVE</Text>
-          </View>
-        )}
-        {verifyState.status === 'checking' ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
-        ) : (
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-        )}
-        <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-      </View>
-
-      {/* Phone number if verified */}
-      {verifyState.phoneNumber && (
-        <View style={styles.waPhoneRow}>
-          <Ionicons name="call-outline" size={14} color={Colors.gray500} />
-          <Text style={styles.waPhoneText}>{verifyState.phoneNumber}</Text>
-        </View>
-      )}
-
-      {/* Error message */}
-      {verifyState.status === 'error' && verifyState.error && (
-        <View style={styles.waErrorRow}>
-          <Ionicons name="alert-circle-outline" size={14} color={Colors.danger} />
-          <Text style={styles.waErrorText}>{verifyState.error}</Text>
-        </View>
-      )}
-
-      {/* IDs */}
-      <View style={styles.waIds}>
-        <IdRow label="Phone ID" value={phoneNumberId} />
-        <IdRow label="WABA ID" value={businessId} />
-        <IdRow label="Page ID" value={pageId} />
-        <IdRow label="App ID" value={metaAppId} />
-      </View>
-    </Card>
+    </View>
   );
 }
 
@@ -612,17 +474,17 @@ function SyncRow({ label, value }: { label: string; value: string | null }) {
     : 'Never';
   return (
     <View style={styles.syncTimestampRow}>
-      <Text style={styles.syncTimestampLabel}>{label}:</Text>
+      <Text style={styles.syncTimestampLabel}>{label}</Text>
       <Text style={styles.syncTimestampValue}>{formatted}</Text>
     </View>
   );
 }
 
-// ─── Shared Components ────────────────────────────────────────────────────────
-function SectionHeader({ title, inline = false }: { title: string; inline?: boolean }) {
+// ─── Shared sub-components ────────────────────────────────────────────────────
+function SectionLabel({ title }: { title: string }) {
   return (
-    <View style={[styles.sectionHeader, inline && { marginBottom: 0 }]}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.sectionLabel}>
+      <Text style={styles.sectionLabelText}>{title}</Text>
     </View>
   );
 }
@@ -637,12 +499,16 @@ function MenuItem({
 }) {
   if (access && userRole && !access.includes(userRole)) return null;
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.menuItem, divider && styles.menuItemBorder]} activeOpacity={0.7}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.menuItem, divider && styles.menuItemDivider]}
+      activeOpacity={0.6}
+    >
       <View style={styles.menuIconWrap}>
-        <Ionicons name={icon as any} size={18} color={Colors.primary} />
+        <Ionicons name={icon as any} size={17} color={Colors.primary} />
       </View>
       <Text style={styles.menuLabel}>{label}</Text>
-      {chevron && <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />}
+      {chevron && <Ionicons name="chevron-forward" size={15} color={Colors.gray300} />}
     </TouchableOpacity>
   );
 }
@@ -652,13 +518,13 @@ function IntegrationStatus({ icon, label, status, color }: {
   status: 'connected' | 'setup_required' | 'error'; color: string;
 }) {
   return (
-    <View style={styles.integrationItem}>
-      <Ionicons name={icon as any} size={18} color={color} />
-      <Text style={styles.integrationLabel}>{label}</Text>
-      <View style={[styles.integrationBadge, {
+    <View style={styles.integrationStatusItem}>
+      <Ionicons name={icon as any} size={17} color={color} />
+      <Text style={styles.integrationStatusLabel}>{label}</Text>
+      <View style={[styles.integrationStatusBadge, {
         backgroundColor: status === 'connected' ? Colors.successLight : Colors.warningLight,
       }]}>
-        <Text style={[styles.integrationBadgeText, {
+        <Text style={[styles.integrationStatusBadgeText, {
           color: status === 'connected' ? Colors.success : Colors.warning,
         }]}>
           {status === 'connected' ? 'Connected' : 'Setup Required'}
@@ -670,90 +536,412 @@ function IntegrationStatus({ icon, label, status, color }: {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.gray50 },
-  content: { padding: Spacing.base },
+  screen: {
+    flex: 1,
+    backgroundColor: Colors.gray50,
+  },
 
-  profileCard: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.base },
-  profileAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
-  avatarText: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.white },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.navy },
-  profileEmail: { fontSize: FontSize.sm, color: Colors.gray500, marginVertical: 3 },
-  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: Radius.full },
-  roleText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  // Header
+  header: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  headerTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.xs, marginTop: Spacing.sm },
-  sectionHeader: { paddingVertical: Spacing.xs, marginTop: Spacing.sm },
-  sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray500, textTransform: 'uppercase', letterSpacing: 0.5 },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: Spacing.sm, backgroundColor: Colors.primaryLight, borderRadius: Radius.md },
-  refreshText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.medium },
+  content: {
+    paddingTop: Spacing.lg,
+  },
 
-  menuCard: { marginBottom: Spacing.xs },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.base },
-  menuItemBorder: { borderTopWidth: 1, borderTopColor: Colors.gray100 },
-  menuIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
-  menuLabel: { flex: 1, fontSize: FontSize.base, color: Colors.gray800 },
+  // Profile card
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  profileAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarText: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+  profileInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  profileName: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray900,
+  },
+  profileEmail: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    marginTop: 2,
+  },
+  roleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  roleText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-  // Meta connection card
-  metaCard: { marginBottom: Spacing.sm },
-  metaHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-  metaIconWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E7F0FD', alignItems: 'center', justifyContent: 'center' },
-  metaTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.navy },
-  metaSubtitle: { fontSize: FontSize.xs, color: Colors.gray500 },
-  metaStatusDot: { width: 8, height: 8, borderRadius: 4 },
-  metaStatusLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
-  metaPages: { borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: Spacing.sm, marginBottom: Spacing.sm, gap: 6 },
-  metaPageRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaPageName: { flex: 1, fontSize: FontSize.xs, color: Colors.gray700 },
-  metaPageCategory: { fontSize: FontSize.xs, color: Colors.gray400 },
-  metaNote: { fontSize: FontSize.xs, color: Colors.gray500, lineHeight: 18, marginBottom: Spacing.sm },
-  metaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: Spacing.sm, borderRadius: Radius.md, borderWidth: 1 },
-  metaBtnPrimary: { backgroundColor: '#1877F2', borderColor: '#1877F2' },
-  metaBtnDanger: { backgroundColor: Colors.dangerLight, borderColor: Colors.danger },
-  metaBtnDisabled: { opacity: 0.6 },
-  metaBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  // Section labels (Notion style)
+  sectionLabel: {
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
+  },
+  sectionLabelText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray400,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
 
-  // WhatsApp account cards
-  waCard: { marginBottom: Spacing.sm },
-  waCardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-  waIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8FFF0', alignItems: 'center', justifyContent: 'center' },
-  waCardLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.navy },
-  waDisplayName: { fontSize: FontSize.xs, color: Colors.gray500 },
-  activeBadge: { backgroundColor: Colors.primaryLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.full },
-  activeBadgeText: { fontSize: 9, fontWeight: FontWeight.bold, color: Colors.primary, letterSpacing: 0.5 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
-  waPhoneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  waPhoneText: { fontSize: FontSize.sm, color: Colors.gray600 },
-  waErrorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  waErrorText: { fontSize: FontSize.xs, color: Colors.danger, flex: 1 },
-  waIds: { borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: Spacing.sm, gap: 4 },
-  idRow: { flexDirection: 'row', alignItems: 'center' },
-  idLabel: { fontSize: FontSize.xs, color: Colors.gray500, width: 70 },
-  idValue: { fontSize: FontSize.xs, color: Colors.gray700, fontFamily: 'monospace', flex: 1 },
+  // Menu group
+  menuGroup: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 14,
+    gap: Spacing.md,
+  },
+  menuItemDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.gray200,
+  },
+  menuIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuLabel: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.gray700,
+  },
 
-  // Meta Sync
-  syncCard: { marginBottom: Spacing.xs, gap: Spacing.sm },
-  syncNote: { fontSize: FontSize.xs, color: Colors.gray500, lineHeight: 18 },
-  syncTimestamps: { gap: 4 },
-  syncTimestampRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  syncTimestampLabel: { fontSize: FontSize.xs, color: Colors.gray500, width: 140 },
-  syncTimestampValue: { fontSize: FontSize.xs, color: Colors.gray700, fontWeight: FontWeight.medium },
-  syncBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radius.md },
-  syncBtnDisabled: { opacity: 0.6 },
-  syncBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.white },
-  syncResult: { borderRadius: Radius.sm, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
-  syncResultOk: { backgroundColor: Colors.successLight },
-  syncResultError: { backgroundColor: Colors.dangerLight },
-  syncResultText: { fontSize: FontSize.xs, color: Colors.gray700 },
+  // Integration card (Meta Ads)
+  integrationCard: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    gap: Spacing.md,
+  },
+  integrationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  integrationIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.md,
+    backgroundColor: '#E8F0FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  integrationTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray900,
+  },
+  integrationSubtitle: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    marginTop: 1,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusPillText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+  },
+  pagesList: {
+    backgroundColor: Colors.gray50,
+    borderRadius: Radius.lg,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  pageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: 2,
+  },
+  pageName: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.gray700,
+  },
+  pageCategory: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+  },
+  integrationNote: {
+    fontSize: FontSize.sm,
+    color: Colors.gray500,
+    lineHeight: 20,
+  },
+  integrationBtnFill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: '#1877F2',
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: Radius.lg,
+  },
+  integrationBtnFillText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.white,
+  },
+  integrationBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.danger + '40',
+    backgroundColor: Colors.dangerLight,
+  },
+  integrationBtnOutlineText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+  },
+  disabledBtn: {
+    opacity: 0.5,
+  },
 
-  integrations: { marginBottom: Spacing.xs, gap: Spacing.sm },
-  integrationItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  integrationLabel: { flex: 1, fontSize: FontSize.sm, color: Colors.gray700 },
-  integrationBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: Radius.full },
-  integrationBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  // Sync card
+  syncCard: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderRadius: Radius.xl,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    gap: Spacing.md,
+  },
+  syncNote: {
+    fontSize: FontSize.sm,
+    color: Colors.gray500,
+    lineHeight: 20,
+  },
+  syncTimestamps: {
+    backgroundColor: Colors.gray50,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  syncTimestampRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  syncTimestampLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.gray500,
+  },
+  syncTimestampValue: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray700,
+  },
+  syncActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  syncBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.lg,
+  },
+  syncBtnDisabled: {
+    opacity: 0.5,
+  },
+  syncBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.white,
+  },
+  syncBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.gray100,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+  },
+  syncBtnSecondaryText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray600,
+  },
+  resultBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+  },
+  resultBannerOk: {
+    backgroundColor: Colors.successLight,
+  },
+  resultBannerError: {
+    backgroundColor: Colors.dangerLight,
+  },
+  resultBannerText: {
+    flex: 1,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+  },
 
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, backgroundColor: Colors.dangerLight, borderRadius: Radius.lg, marginTop: Spacing.md },
-  logoutText: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.danger },
-  footer: { textAlign: 'center', fontSize: FontSize.xs, color: Colors.gray400, marginTop: Spacing.xl },
+  // Logout
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.dangerLight,
+    borderWidth: 1,
+    borderColor: Colors.danger + '30',
+  },
+  logoutText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.danger,
+  },
+
+  footer: {
+    textAlign: 'center',
+    fontSize: FontSize.xs,
+    color: Colors.gray300,
+    marginTop: Spacing.xl,
+  },
+
+  // IDs (WhatsApp — kept for commented-out section)
+  idRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingVertical: 3,
+  },
+  idLabel: {
+    fontSize: 10,
+    color: Colors.gray400,
+    width: 64,
+    flexShrink: 0,
+  },
+  idValue: {
+    flex: 1,
+    fontSize: 10,
+    color: Colors.gray600,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+
+  // Integration status list (kept for commented-out section)
+  integrationStatusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  integrationStatusLabel: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.gray700,
+  },
+  integrationStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  integrationStatusBadgeText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+  },
 });
