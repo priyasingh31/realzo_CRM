@@ -1,57 +1,47 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, StyleProp, Pressable } from 'react-native';
-import { Colors } from '@/constants/colors';
-import { Radius, Shadow, Spacing } from '@/constants/theme';
+import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
 
-interface CardProps {
+type Props = {
   children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-  onPress?: () => void;
-  padding?: number | 'none';
-  variant?: 'white' | 'navy' | 'teal';
-}
+  style?: ViewStyle;
+  padding?: 'none' | 'sm' | 'md';
+};
 
-export function Card({ children, style, onPress, padding = Spacing.base, variant = 'white' }: CardProps) {
-  const content = (
-    <View style={[
-      styles.card,
-      variant === 'white' && styles.white,
-      variant === 'navy' && styles.navy,
-      variant === 'teal' && styles.teal,
-      padding !== 'none' && { padding: typeof padding === 'number' ? padding : Spacing.base },
-      style,
-    ]}>
+export const Card = ({ children, style, padding = 'md' }: Props) => {
+  return (
+    <View
+      style={[
+        styles.card,
+        padding === 'sm' && styles.paddingSm,
+        padding === 'md' && styles.paddingMd,
+        padding === 'none' && styles.paddingNone,
+        style,
+      ]}
+    >
       {children}
     </View>
   );
-
-  if (onPress) {
-    return (
-      <Pressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
-        {content}
-      </Pressable>
-    );
-  }
-
-  return content;
-}
+};
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: Radius.lg,
-    ...Shadow.md,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+    ...(Platform.OS === 'web' && {
+      boxShadow: '0px 8px 24px rgba(0,0,0,0.06)',
+    }),
   },
-  white: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.gray100,
+  paddingMd: {
+    padding: 16,
   },
-  navy: {
-    backgroundColor: Colors.navyMid,
+  paddingSm: {
+    padding: 10,
   },
-  teal: {
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1,
-    borderColor: Colors.primary + '30',
+  paddingNone: {
+    padding: 0,
   },
 });
