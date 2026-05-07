@@ -72,11 +72,14 @@ export async function updateLead(id: string, data: Partial<Lead>): Promise<void>
 }
 
 // ─── Update Lead Status ───────────────────────────────────────────────────────
-export async function updateLeadStatus(id: string, status: LeadStatus): Promise<void> {
+export async function updateLeadStatus(id: string, status: LeadStatus, existingClosureDate?: string): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
   await updateDoc(doc(db, COLLECTIONS.LEADS, id), {
     status,
     updatedAt: serverTimestamp(),
     ...(status === 'contacted' ? { lastContactedAt: serverTimestamp() } : {}),
+    // Stamp closureDate the first time a lead is marked closed_won
+    ...(status === 'closed_won' && !existingClosureDate ? { closureDate: today } : {}),
   });
 }
 

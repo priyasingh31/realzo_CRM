@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, RefreshControl, Modal, ScrollView,
-  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  TextInput, Modal, ScrollView,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -24,7 +24,7 @@ function safeFormatDate(val: unknown, fmt: string, fallback = ''): string {
   const d = toDate(val);
   return d ? format(d, fmt) : fallback;
 }
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { Colors } from '@/constants/colors';
@@ -46,9 +46,7 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
   closed_won:            { label: 'Closed Won',      color: '#16A34A', bg: '#DCFCE7' },
   dead:                  { label: 'Dead',            color: '#6B7280', bg: '#F3F4F6' },
   invalid:               { label: 'Invalid',         color: '#9CA3AF', bg: '#F9FAFB' },
-  qualified:             { label: 'Qualified',       color: '#0D9488', bg: '#CCFBF1' },
-  rnr:                   { label: 'RNR',             color: '#B45309', bg: '#FEF3C7' },
-  switch_off:            { label: 'Switch Off',      color: '#6B21A8', bg: '#F3E8FF' },
+  qualified:             { label: 'Qualified',        color: '#0D9488', bg: '#CCFBF1' },
 };
 
 type SourceFilterKey = LeadSource | 'all' | 'meta_1' | 'meta_2' | 'meta_3';
@@ -108,8 +106,14 @@ export default function LeadsScreen() {
 
   // ── Apply quick filter from params ─────────────────────────────────────────
   useEffect(() => {
-    if (params.filter === 'missed' || params.filter === 'followup') {
+    if (params.filter === 'followup') {
       setStatusFilter('follow_up');
+    } else if (params.filter === 'visits') {
+      setStatusFilter('site_visit_scheduled');
+    } else {
+      // 'today', 'missed', and no filter: status filter is 'all',
+      // narrowing is done by the date-based filter logic below
+      setStatusFilter('all');
     }
   }, [params.filter]);
 
@@ -146,10 +150,16 @@ export default function LeadsScreen() {
 
     // Date-based quick filters from navigation params
     const today = format(new Date(), 'yyyy-MM-dd');
-    const leadDate = safeFormatDate(lead.createdAt, 'yyyy-MM-dd');
-    if (params.filter === 'today'   && leadDate !== today) return false;
-    if (params.filter === 'visits'  && !lead.visitDate?.startsWith(today)) return false;
-    if (params.filter === 'missed'  && !(lead.followUpDate && lead.followUpDate < today && !['closed_won','dead','invalid'].includes(lead.status))) return false;
+    if (params.filter === 'today') {
+      const leadDate = safeFormatDate(lead.createdAt, 'yyyy-MM-dd');
+      if (leadDate !== today) return false;
+    }
+    if (params.filter === 'missed') {
+      const fupStr = safeFormatDate(lead.followUpDate, 'yyyy-MM-dd');
+      if (!fupStr || fupStr >= today) return false;
+      if (['closed_won', 'dead', 'invalid'].includes(lead.status)) return false;
+    }
+    // 'visits' and 'followup' are handled entirely by statusFilter above
 
     return matchSearch && matchSource && matchStatus;
   });
@@ -292,15 +302,6 @@ export default function LeadsScreen() {
               </Text>
             </TouchableOpacity>
           )}
-          {isAdmin && (['rnr', 'switch_off', 'closed_won'] as LeadStatus[]).map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
-              onPress={() => setStatusFilter(statusFilter === s ? 'all' : s)}
-            >
-              <Text style={[styles.chipText, statusFilter === s && { color: Colors.white }]}>{STATUS_CONFIG[s].label}</Text>
-            </TouchableOpacity>
-          ))}
           {(['new','assigned','contacted','interested','follow_up','site_visit_scheduled','not_interested','dead','invalid'] as LeadStatus[]).map(s => (
             <TouchableOpacity
               key={s}
@@ -516,11 +517,14 @@ function CRMModal({
   const saveChanges = async () => {
     setSaving(true);
     try {
+      const today = new Date().toISOString().split('T')[0]; // 'yyyy-MM-dd'
       const updates: Partial<Lead> = {
         status,
         followUpDate: followUpDate || null,
         visitDate: visitDate || null,
         updatedAt: new Date().toISOString(),
+        // Stamp closureDate the first time a lead is marked closed_won
+        ...(status === 'closed_won' && !lead.closureDate ? { closureDate: today } : {}),
       };
       await updateDoc(doc(db, 'leads', lead.id), updates as Record<string, unknown>);
 

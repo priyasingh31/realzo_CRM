@@ -132,21 +132,19 @@ export async function getAdminDashboardMetrics(
     // Created today — handles Firestore Timestamp and ISO string (Meta UTC → IST)
     if (toLocalDateStr(lead.createdAt) === todayStr) leadsToday++;
 
-    // Today's follow-ups
-    const followUpStr = toLocalDateStr(lead.followUpDate);
-    if (followUpStr === todayStr &&
-        !['closed_won', 'dead', 'invalid'].includes(lead.status)) {
-      todayFollowUps++;
-    }
+    // Follow-ups: all active follow_up status leads
+    if (lead.status === 'follow_up') todayFollowUps++;
 
-    // Missed follow-ups (past date, not done)
-    if (followUpStr && followUpStr < todayStr &&
-        !['closed_won', 'dead', 'invalid', 'contacted'].includes(lead.status)) {
-      missedFollowUps++;
-    }
+    // Visits: all site_visit_scheduled leads
+    if (lead.status === 'site_visit_scheduled') todayVisits++;
 
-    // Today's visits
-    if (toLocalDateStr(lead.visitDate) === todayStr) todayVisits++;
+    // Missed: assigned leads not updated in >10 min
+    // Uses new Date(ref) exactly like the notifications page so counts always match
+    if (lead.assignedTo && !['closed_won', 'dead', 'invalid'].includes(lead.status)) {
+      const ref = lead.updatedAt ?? lead.createdAt;
+      const refMs = new Date(ref as any).getTime();
+      if (!isNaN(refMs) && Date.now() - refMs > 10 * 60 * 1000) missedFollowUps++;
+    }
 
     // Closures
     if (lead.status === 'closed_won') {
@@ -200,15 +198,36 @@ export async function getSalesDashboardMetrics(salesUid: string): Promise<SalesD
   let myLeadsToday = 0, pendingFollowUps = 0, todayVisits = 0,
       missedFollowUps = 0, totalAssigned = 0, closedThisMonth = 0, totalRevenue = 0;
 
-  const monthStart = format(startOfMonth(new Date()), 'yyyy-MM');
+  // Helper to convert Firestore Timestamp or string to 'yyyy-MM-dd' format
+  function toDateStr(val: any): string | null {
+    if (!val) return null;
+    try {
+      const d = typeof val.toDate === 'function' ? val.toDate() : new Date(val);
+      return format(d, 'yyyy-MM-dd');
+    } catch { return null; }
+  }
 
   for (const lead of leads) {
     totalAssigned++;
-    if (lead.createdAt?.startsWith(today)) myLeadsToday++;
-    if (lead.followUpDate?.startsWith(today) && !['closed_won','dead','invalid'].includes(lead.status)) pendingFollowUps++;
-    if (lead.followUpDate && lead.followUpDate < today && !['closed_won','dead','invalid'].includes(lead.status)) missedFollowUps++;
-    if (lead.visitDate?.startsWith(today)) todayVisits++;
-    if (lead.status === 'closed_won' && lead.closureDate?.startsWith(monthStart)) {
+    
+    const createdDateStr = toDateStr(lead.createdAt);
+    if (createdDateStr === today) myLeadsToday++;
+    
+    // Follow-ups: all active follow_up status leads (matches what the leads page shows)
+    if (lead.status === 'follow_up') pendingFollowUps++;
+
+    // Visits: all site_visit_scheduled leads (matches the leads page visit filter)
+    if (lead.status === 'site_visit_scheduled') todayVisits++;
+
+    // Missed: assigned leads not updated in >10 min
+    // Uses new Date(ref) exactly like the notifications page so counts always match
+    if (lead.assignedTo && !['closed_won', 'dead', 'invalid'].includes(lead.status)) {
+      const ref = lead.updatedAt ?? lead.createdAt;
+      const refMs = new Date(ref as any).getTime();
+      if (!isNaN(refMs) && Date.now() - refMs > 10 * 60 * 1000) missedFollowUps++;
+    }
+    
+    if (lead.status === 'closed_won') {
       closedThisMonth++;
       totalRevenue += lead.closureValue || 0;
     }
@@ -368,4 +387,24 @@ export async function getAllManagersSummary(): Promise<Array<{
     })
   );
   return results;
+}
+
+// ─── Lead Category Counts (Followup Categories) ───────────────────────────────
+export interface LeadCategoryMetrics {
+  prospects: number;      // status: 'contacted'
+  rnr: number;           // status: 'rnr' or 'switch_off'
+  invalid: number;       // status: 'invalid'
+}
+
+export async function getLeadCategoryMetrics(salesUid: string): Promise<LeadCategoryMetrics> {
+  const snap = await getDocs(
+    query(collection(db, 'leads'), where('assignedTo', '==', salesUid))
+  );
+  const leads = snap.docs.map(d => d.data());
+
+  const prospects = leads.filter(l => l.status === 'contacted').length;
+  const rnr = leads.filter(l => l.status === 'rnr' || l.status === 'switch_off').length;
+  const invalid = leads.filter(l => l.status === 'invalid').length;
+
+  return { prospects, rnr, invalid };
 }
