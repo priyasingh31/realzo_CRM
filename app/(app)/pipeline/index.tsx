@@ -48,11 +48,11 @@ const PIPELINE_STAGES = [
     description: 'Pricing & terms being finalized',
   },
   {
-    key: 'closed_won',
-    label: 'Closed Won',
+    key: 'Booked',
+    label: 'Booked',
     icon: 'trophy-outline',
     color: '#16A34A',
-    statuses: ['closed_won'],
+    statuses: ['Booked'],
     description: 'Deal successfully closed',
   },
 ] as const;
@@ -92,7 +92,7 @@ export default function PipelineScreen() {
 
   // Total estimated value (budget) of active pipeline
   const totalValue = leads
-    .filter(l => !['dead', 'invalid', 'not_interested'].includes(l.status) && l.budget)
+    .filter(l => !['EOICustomer', 'invalid', 'not_interested'].includes(l.status) && l.budget)
     .reduce((sum, l) => sum + (l.budget ?? 0), 0);
 
   const visibleStages = selected
@@ -242,7 +242,7 @@ export default function PipelineScreen() {
       <View style={[styles.purposeBar, { paddingBottom: insets.bottom + 65 }]}>
         <Ionicons name="information-circle-outline" size={13} color={Colors.gray400} />
         <Text style={styles.purposeText}>
-          The pipeline tracks active leads from <Text style={styles.purposeBold}>Interested</Text> → <Text style={styles.purposeBold}>Follow Up</Text> → <Text style={styles.purposeBold}>Site Visit</Text> → <Text style={styles.purposeBold}>Negotiation</Text> → <Text style={styles.purposeBold}>Closed Won</Text>. Tap any card to open the lead. Tap a column to filter. Budget values shown are estimated deal sizes.
+          The pipeline tracks active leads from <Text style={styles.purposeBold}>Interested</Text> → <Text style={styles.purposeBold}>Follow Up</Text> → <Text style={styles.purposeBold}>Site Visit</Text> → <Text style={styles.purposeBold}>Negotiation</Text> → <Text style={styles.purposeBold}>Booked</Text>. Tap any card to open the lead. Tap a column to filter. Budget values shown are estimated deal sizes.
         </Text>
       </View>
     </View>

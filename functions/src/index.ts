@@ -163,7 +163,7 @@ export const onLeadAssigned = functions.firestore
 
     if (!justAssigned) return;
 
-    // Store escalation deadline (10 minutes from now)
+    // Store escalation EOICustomerline (10 minutes from now)
     const escalateAt = new Date(Date.now() + 10 * 60 * 1000);
     await change.after.ref.update({ escalateAt: admin.firestore.Timestamp.fromDate(escalateAt) });
 

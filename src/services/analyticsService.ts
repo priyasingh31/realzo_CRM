@@ -140,14 +140,14 @@ export async function getAdminDashboardMetrics(
 
     // Missed: assigned leads not updated in >10 min
     // Uses new Date(ref) exactly like the notifications page so counts always match
-    if (lead.assignedTo && !['closed_won', 'dead', 'invalid'].includes(lead.status)) {
+    if (lead.assignedTo && !['Booked', 'EOICustomer', 'invalid'].includes(lead.status)) {
       const ref = lead.updatedAt ?? lead.createdAt;
       const refMs = new Date(ref as any).getTime();
       if (!isNaN(refMs) && Date.now() - refMs > 10 * 60 * 1000) missedFollowUps++;
     }
 
     // Closures
-    if (lead.status === 'closed_won') {
+    if (lead.status === 'Booked') {
       totalClosed++;
       totalRevenue += lead.closureValue || 0;
     }
@@ -221,13 +221,13 @@ export async function getSalesDashboardMetrics(salesUid: string): Promise<SalesD
 
     // Missed: assigned leads not updated in >10 min
     // Uses new Date(ref) exactly like the notifications page so counts always match
-    if (lead.assignedTo && !['closed_won', 'dead', 'invalid'].includes(lead.status)) {
+    if (lead.assignedTo && !['Booked', 'EOICustomer', 'invalid'].includes(lead.status)) {
       const ref = lead.updatedAt ?? lead.createdAt;
       const refMs = new Date(ref as any).getTime();
       if (!isNaN(refMs) && Date.now() - refMs > 10 * 60 * 1000) missedFollowUps++;
     }
     
-    if (lead.status === 'closed_won') {
+    if (lead.status === 'Booked') {
       closedThisMonth++;
       totalRevenue += lead.closureValue || 0;
     }
@@ -261,7 +261,7 @@ export async function getAgentPerformance(
   }
 
   let leadsFromMeta = 0, leadsFromGoogle = 0, leadsFromUploaded = 0;
-  let interested = 0, notInterested = 0, dead = 0, invalid = 0;
+  let interested = 0, notInterested = 0, EOICustomer = 0, invalid = 0;
   let siteVisits = 0, closures = 0, revenue = 0;
   let respondedCount = 0;
 
@@ -272,12 +272,12 @@ export async function getAgentPerformance(
 
     if (lead.status === 'interested') interested++;
     else if (lead.status === 'not_interested') notInterested++;
-    else if (lead.status === 'dead') dead++;
+    else if (lead.status === 'EOICustomer') EOICustomer++;
     else if (lead.status === 'invalid') invalid++;
 
     if (['site_visit_scheduled', 'site_visit_done'].includes(lead.status)) siteVisits++;
 
-    if (lead.status === 'closed_won') {
+    if (lead.status === 'Booked') {
       closures++;
       revenue += lead.closureValue || 0;
     }
@@ -296,7 +296,7 @@ export async function getAgentPerformance(
     managerId: user.managerId,
     totalLeads: leads.length,
     leadsFromMeta, leadsFromGoogle, leadsFromUploaded,
-    interested, notInterested, dead, invalid,
+    interested, notInterested, EOICustomer, invalid,
     siteVisits, closures, revenue, responseRate,
     lastActive: user.lastActive,
   };
@@ -341,7 +341,7 @@ export async function getAgentMonthlyTrend(
     const monthKey = lead.createdAt?.substring(0, 7);
     if (!monthKey || !trend[monthKey]) continue;
     trend[monthKey].leads++;
-    if (lead.status === 'closed_won') {
+    if (lead.status === 'Booked') {
       trend[monthKey].closures++;
       trend[monthKey].revenue += lead.closureValue || 0;
     }
@@ -371,8 +371,8 @@ export async function getAllManagersSummary(): Promise<Array<{
         query(collection(db, 'leads'), where('managerId', '==', mDoc.id))
       );
       const leads = leadsSnap.docs.map(d => d.data());
-      const closures = leads.filter(l => l.status === 'closed_won').length;
-      const revenue = leads.filter(l => l.status === 'closed_won').reduce((s, l) => s + (l.closureValue || 0), 0);
+      const closures = leads.filter(l => l.status === 'Booked').length;
+      const revenue = leads.filter(l => l.status === 'Booked').reduce((s, l) => s + (l.closureValue || 0), 0);
 
       return {
         uid: mDoc.id,

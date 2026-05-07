@@ -209,7 +209,7 @@ export function ManagerTeamView({ managerId, managerName }: { managerId: string;
                 <View style={styles.agentStatsGrid}>
                   <AgentStat label="Interested"    value={agent.interested}    color={Colors.primary} />
                   <AgentStat label="Not Interested" value={agent.notInterested} color={Colors.danger} />
-                  <AgentStat label="Dead"          value={agent.dead}          color={Colors.gray400} />
+                  <AgentStat label="EOICustomer"          value={agent.EOICustomer}          color={Colors.gray400} />
                   <AgentStat label="Invalid"       value={agent.invalid}       color={Colors.gray300} />
                 </View>
                 <View style={styles.agentBottom}>

@@ -111,7 +111,7 @@ export default function AgentDetailScreen() {
               <KPIBox label="Total Leads"    value={agent.totalLeads}     icon="people"       color={Colors.navy} />
               <KPIBox label="Interested"     value={agent.interested}     icon="thumbs-up"    color={Colors.primary} />
               <KPIBox label="Not Interested" value={agent.notInterested}  icon="thumbs-down"  color={Colors.danger} />
-              <KPIBox label="Dead"           value={agent.dead}           icon="skull-outline" color={Colors.gray400} />
+              <KPIBox label="EOICustomer"           value={agent.EOICustomer}           icon="skull-outline" color={Colors.gray400} />
               <KPIBox label="Invalid"        value={agent.invalid}        icon="ban-outline"  color={Colors.gray300} />
               <KPIBox label="Site Visits"    value={agent.siteVisits}     icon="home"         color="#8B5CF6" />
             </View>

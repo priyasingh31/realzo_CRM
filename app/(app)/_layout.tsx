@@ -84,7 +84,7 @@ export default function AppLayout() {
       const missed = snap.docs.filter(d => {
         const l = d.data() as Lead;
         if (!l.assignedTo) return false;
-        if (['closed_won', 'dead', 'invalid'].includes(l.status)) return false;
+        if (['Booked', 'EOICustomer', 'invalid'].includes(l.status)) return false;
         const ref = l.updatedAt ?? l.createdAt;
         return now - new Date(ref).getTime() > TEN_MIN;
       }).length;
