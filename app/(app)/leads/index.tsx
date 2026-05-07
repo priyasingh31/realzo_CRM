@@ -25,11 +25,9 @@ function safeFormatDate(val: unknown, fmt: string, fallback = ''): string {
   return d ? format(d, fmt) : fallback;
 }
 import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { sendLocalNotification } from '@/services/notificationService';
-import { sendStatusChangeEmail } from '@/services/emailService';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import { isWeb, WEB_MAX_WIDTH } from '@/utils/responsive';
@@ -493,7 +491,6 @@ function CRMModal({
   currentUserName: string;
   currentUserRole: string;
 }) {
-  const { user } = useAuthStore();
   const [comments, setComments] = useState<LeadComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [status, setStatus] = useState<LeadStatus>(lead.status);
@@ -562,19 +559,6 @@ function CRMModal({
             'general'
           ).catch(console.error);
 
-          // Remote push via Expo Push Service — appears on lock screen even when app is closed
-          if (user?.pushToken) {
-            const fns = getFunctions();
-            const sendPush = httpsCallable(fns, 'sendPushNotification');
-            sendPush({
-              token: user.pushToken,
-              title: '✅ Lead Status Updated',
-              body: `${lead.name}: ${oldLabel} → ${newLabel}`,
-              notifData: { type: 'status_change', leadId: lead.id },
-              channelId: 'general',
-            }).catch(console.error);
-          }
-
           // Firestore notification record (shows in Notifications tab)
           addDoc(collection(db, 'notifications'), {
             title: 'Lead Status Updated',
@@ -586,18 +570,6 @@ function CRMModal({
             createdAt: serverTimestamp(),
           }).catch(console.error);
 
-          // Email confirmation to the sales person
-          if (user?.email) {
-            sendStatusChangeEmail(
-              user.email,
-              currentUserName,
-              lead.name,
-              oldLabel,
-              newLabel,
-              lead.id,
-              currentUserId
-            ).catch(console.error);
-          }
         }
       }
       onClose();
