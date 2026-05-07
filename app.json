@@ -4,7 +4,7 @@
     "slug": "relazo-crm",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/Fav.png",
     "userInterfaceStyle": "light",
     "scheme": "relazo",
     "splash": {
@@ -21,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-Fav.png",
         "backgroundColor": "#0D1B2A"
       },
       "package": "com.relazo.crm",
@@ -41,7 +41,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/Fav.png",
       "name": "Relazo CRM",
       "shortName": "Relazo",
       "description": "Real Estate CRM for managing leads, deals, and properties"
@@ -53,7 +53,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
+          "icon": "./assets/notification-Fav.png",
           "color": "#1A9B6C",
           "sounds": [
             "./assets/notification.wav",

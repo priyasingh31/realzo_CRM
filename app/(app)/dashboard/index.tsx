@@ -28,13 +28,14 @@ export default function DashboardScreen() {
 
 // ─── SALES DASHBOARD ──────────────────────────────────────────────────────────
 function SalesDashboard() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isMobile } = useResponsive();
   const [metrics, setMetrics] = useState<SalesDashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const load = async () => {
     if (!user?.uid) return;
@@ -47,41 +48,108 @@ function SalesDashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstName = user?.displayName?.split(' ')[0] ?? '';
+  const firstLetter = user?.displayName?.charAt(0)?.toUpperCase() ?? '?';
   const missed = metrics?.missedFollowUps ?? 0;
+
+  // Web header rendered outside ScrollView so the profile dropdown isn't clipped
+  const profileMenu = !isMobile && (
+    <View style={sStyles.webHeader}>
+      <View>
+        <Text style={sStyles.webGreeting}>{greeting}, {firstName} 👋</Text>
+        <Text style={sStyles.webDate}>{format(new Date(), 'EEEE, MMMM d')}</Text>
+      </View>
+      <View style={sStyles.webHeaderRight}>
+        {/* Bell */}
+        <TouchableOpacity
+          style={sStyles.webIconBtn}
+          onPress={() => router.push({ pathname: '/notifications', params: { tab: 'missed' } })}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={19} color={Colors.gray500} />
+          {missed > 0 && (
+            <View style={sStyles.notifDot}>
+              <Text style={sStyles.notifDotText}>{missed > 99 ? '99+' : missed}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Profile button + dropdown */}
+        <View style={sStyles.profileMenuWrap}>
+          <TouchableOpacity
+            style={sStyles.profileMenuBtn}
+            onPress={() => setShowProfileMenu(v => !v)}
+            activeOpacity={0.85}
+          >
+            <View style={sStyles.profileInitialsCircle}>
+              <Text style={sStyles.profileInitialsText}>
+                {(user?.displayName ?? '')
+                  .split(' ').filter(Boolean).slice(0, 2)
+                  .map(n => n[0].toUpperCase()).join('')}
+              </Text>
+            </View>
+            <Ionicons name="chevron-down" size={13} color={Colors.gray500} />
+          </TouchableOpacity>
+
+          {showProfileMenu && (
+            <>
+              <TouchableOpacity
+                style={sStyles.menuBackdrop}
+                onPress={() => setShowProfileMenu(false)}
+                activeOpacity={1}
+              />
+              <View style={sStyles.profileDropdown}>
+                <View style={sStyles.dropdownHeader}>
+                  <Text style={sStyles.signedInAs}>Signed in as</Text>
+                  <Text style={sStyles.dropdownName}>{user?.displayName}</Text>
+                  <Text style={sStyles.dropdownEmail}>{user?.email}</Text>
+                </View>
+                <View style={sStyles.dropdownDivider} />
+                <TouchableOpacity
+                  style={sStyles.dropdownItem}
+                  onPress={() => { setShowProfileMenu(false); router.push('/settings'); }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={sStyles.dropdownItemText}>Profile</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={sStyles.dropdownItem}
+                  onPress={() => { setShowProfileMenu(false); logout(); }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[sStyles.dropdownItemText, { color: Colors.danger }]}>Sign Out</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.screen}>
-      {/* ── Header ── */}
-      <LinearGradient colors={[Colors.navy, '#1A2F45']} style={[sStyles.header, { paddingTop: insets.top + 14 }]}>
-        <View style={sStyles.headerRow}>
-          <View style={{ flex: 1 }}>
+      {/* ── Mobile Header ── */}
+      {isMobile && (
+        <LinearGradient colors={[Colors.navy, '#1A2F45']} style={[sStyles.mobileHeader, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity style={sStyles.hamburgerBtn} onPress={() => router.push('/settings')} activeOpacity={0.7}>
+            <Ionicons name="menu-outline" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <View style={sStyles.mobileHeaderCenter}>
             <Text style={sStyles.headerGreeting}>{greeting}, {firstName} 👋</Text>
             <Text style={sStyles.headerDate}>{format(new Date(), 'EEEE, MMMM d')}</Text>
           </View>
-          <View style={sStyles.headerRight}>
-            <TouchableOpacity
-              onPress={() => router.push({ pathname: '/notifications', params: { tab: 'missed' } })}
-              style={sStyles.iconBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="notifications-outline" size={21} color={Colors.white} />
-              {missed > 0 && (
-                <View style={sStyles.notifDot}>
-                  <Text style={sStyles.notifDotText}>{missed > 99 ? '99+' : missed}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/leads/new')} style={sStyles.newBtn} activeOpacity={0.8}>
-              <Ionicons name="add" size={15} color={Colors.white} />
-              <Text style={sStyles.newBtnText}>New</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+          <TouchableOpacity onPress={() => router.push('/settings')} style={sStyles.avatarCircle} activeOpacity={0.8}>
+            <Text style={sStyles.avatarLetterText}>{firstLetter}</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      )}
+
+      {/* ── Web Header outside ScrollView so dropdown isn't clipped ── */}
+      {profileMenu}
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+        contentContainerStyle={{ paddingBottom: Platform.OS === 'web' ? 24 : insets.bottom + 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
@@ -129,8 +197,8 @@ function SalesDashboard() {
             )}
 
             {/* ── Total Closures + Total Assigned ── */}
-            <View style={sStyles.bigRow}>
-              <LinearGradient colors={[Colors.primary, '#0A7A52']} style={sStyles.closuresCard}>
+            <View style={[sStyles.bigRow, isMobile && sStyles.bigRowMobile]}>
+              <LinearGradient colors={[Colors.primary, '#0A7A52']} style={[sStyles.closuresCard, isMobile && sStyles.closuresCardFull]}>
                 <View style={{ flex: 1 }}>
                   <Text style={sStyles.closuresLabel}>Total Closures</Text>
                   <Text style={sStyles.closuresValue}>{metrics?.closedThisMonth ?? 0}</Text>
@@ -139,7 +207,7 @@ function SalesDashboard() {
                 <Ionicons name="trophy-outline" size={44} color="rgba(255,255,255,0.2)" />
               </LinearGradient>
 
-              <View style={sStyles.assignedCard}>
+              <View style={[sStyles.assignedCard, isMobile && sStyles.assignedCardFull]}>
                 <View style={{ flex: 1 }}>
                   <Text style={sStyles.assignedLabel}>Total Assigned</Text>
                   <Text style={sStyles.assignedValue}>{metrics?.totalAssigned ?? 0}</Text>
@@ -614,15 +682,13 @@ const styles = StyleSheet.create({
   // ── Section label ──
   sectionLabel: {
     marginHorizontal: Spacing.base,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.sm,
+    marginTop: Platform.OS === 'web' ? Spacing.sm : Spacing.xl,
+    marginBottom: Platform.OS === 'web' ? Spacing.xs : Spacing.md,
   },
   sectionLabelText: {
-    fontSize: FontSize.xs,
+    fontSize: Platform.OS === 'web' ? FontSize.sm : FontSize.base,
     fontWeight: FontWeight.semibold,
-    color: Colors.gray400,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    color: Colors.gray800,
   },
 
   // ── Alert banner ──
@@ -1022,53 +1088,101 @@ const styles = StyleSheet.create({
 
 // ─── Sales Dashboard Styles ───────────────────────────────────────────────────
 const sStyles = StyleSheet.create({
-  // Header
-  header: {
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.xl,
-  },
-  headerRow: {
+  // ── Mobile header ──
+  mobileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  hamburgerBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileHeaderCenter: {
+    flex: 1,
   },
   headerGreeting: {
-    fontSize: FontSize.xl,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.white,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   headerDate: {
     fontSize: FontSize.sm,
     color: 'rgba(255,255,255,0.55)',
   },
-  headerRight: {
+  avatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetterText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+
+  // ── Web desktop header ──
+  webHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+    zIndex: 200,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 1px 0 #e5e7eb',
+      overflow: 'visible',
+    } as any : {}),
+  },
+  webGreeting: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray900,
+  },
+  webDate: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    marginTop: 2,
+  },
+  webHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  iconBtn: {
+  webIconBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: Colors.gray100,
     alignItems: 'center',
     justifyContent: 'center',
   },
   notifDot: {
     position: 'absolute',
-    top: 5,
-    right: 5,
-    minWidth: 14,
-    height: 14,
-    borderRadius: 7,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: Colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 2,
+    paddingHorizontal: 3,
   },
   notifDotText: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: FontWeight.bold,
     color: Colors.white,
   },
@@ -1079,7 +1193,7 @@ const sStyles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   newBtnText: {
     fontSize: FontSize.sm,
@@ -1087,23 +1201,23 @@ const sStyles = StyleSheet.create({
     color: Colors.white,
   },
 
-  // Alert banner
+  // ── Alert banner ──
   alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: '#FFFBEB',
     marginHorizontal: Spacing.base,
-    marginTop: Spacing.base,
-    padding: Spacing.md,
+    marginTop: Platform.OS === 'web' ? Spacing.sm : Spacing.base,
+    padding: Platform.OS === 'web' ? Spacing.sm : Spacing.md,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: '#FDE68A',
   },
   alertIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1120,11 +1234,11 @@ const sStyles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // Metric grids
+  // ── Metric grids ──
   metricGridWeb: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.base,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
     gap: Spacing.sm,
   },
   metricGridMobile: {
@@ -1140,11 +1254,10 @@ const sStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
     borderRadius: Radius.xl,
-    padding: Spacing.lg,
+    padding: Platform.OS === 'web' ? Spacing.md : Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.gray100,
-    minHeight: 130,
-    justifyContent: 'space-between',
+    minHeight: Platform.OS === 'web' ? 86 : 120,
     ...(Platform.OS === 'web' ? {
       boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
     } as any : {
@@ -1159,109 +1272,214 @@ const sStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    marginBottom: 2,
   },
   metricLabel: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.gray400,
     fontWeight: FontWeight.medium,
     flex: 1,
     marginRight: 6,
   },
   metricIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.lg,
+    width: Platform.OS === 'web' ? 30 : 36,
+    height: Platform.OS === 'web' ? 30 : 36,
+    borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   metricValue: {
-    fontSize: 40,
+    fontSize: Platform.OS === 'web' ? 26 : 36,
     fontWeight: FontWeight.bold,
     color: Colors.gray900,
-    lineHeight: 48,
+    lineHeight: Platform.OS === 'web' ? 32 : 44,
+    marginTop: 2,
   },
 
-  // Big cards row
+  // ── Big cards (closures + assigned) ──
   bigRow: {
     flexDirection: 'row',
     marginHorizontal: Spacing.base,
-    marginTop: Spacing.sm,
+    marginTop: Platform.OS === 'web' ? Spacing.base : Spacing.sm,
     gap: Spacing.sm,
+  },
+  bigRowMobile: {
+    flexDirection: 'column',
+    marginTop: Spacing.sm,
   },
   closuresCard: {
     flex: 1.4,
     borderRadius: Radius.xl,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Platform.OS === 'web' ? Spacing.md : Spacing.xl,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 120,
+    minHeight: Platform.OS === 'web' ? 90 : 120,
     ...(Platform.OS === 'web' ? {
       boxShadow: '0 2px 8px rgba(16,185,129,0.25)',
     } as any : {}),
   },
+  closuresCardFull: {
+    flex: 0,
+  },
   closuresLabel: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.semibold,
     color: 'rgba(255,255,255,0.8)',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   closuresValue: {
-    fontSize: 44,
+    fontSize: Platform.OS === 'web' ? 32 : 44,
     fontWeight: FontWeight.bold,
     color: Colors.white,
-    lineHeight: 52,
+    lineHeight: Platform.OS === 'web' ? 38 : 52,
   },
   closuresSub: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
+    marginTop: 2,
   },
   assignedCard: {
     flex: 1,
     backgroundColor: Colors.white,
     borderRadius: Radius.xl,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Platform.OS === 'web' ? Spacing.md : Spacing.xl,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.gray100,
-    minHeight: 120,
+    minHeight: Platform.OS === 'web' ? 90 : 120,
     ...(Platform.OS === 'web' ? {
       boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
     } as any : {}),
   },
+  assignedCardFull: {
+    flex: 0,
+  },
   assignedLabel: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.gray400,
     fontWeight: FontWeight.medium,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   assignedValue: {
-    fontSize: 40,
+    fontSize: Platform.OS === 'web' ? 30 : 40,
     fontWeight: FontWeight.bold,
     color: Colors.gray900,
-    lineHeight: 48,
+    lineHeight: Platform.OS === 'web' ? 36 : 48,
   },
   assignedIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: Platform.OS === 'web' ? 40 : 48,
+    height: Platform.OS === 'web' ? 40 : 48,
+    borderRadius: Platform.OS === 'web' ? 20 : 24,
     backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  // Quick actions
+  // ── Profile context menu ──
+  profileMenuWrap: {
+    position: 'relative',
+    zIndex: 300,
+  },
+  profileMenuBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.gray100,
+    borderRadius: Radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+  },
+  profileInitialsCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileInitialsText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    letterSpacing: 0.5,
+  },
+  menuBackdrop: {
+    position: 'fixed' as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9998,
+  },
+  profileDropdown: {
+    position: 'absolute',
+    top: 44,
+    right: 0,
+    width: 220,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    zIndex: 9999,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+    } as any : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 8,
+    }),
+  },
+  dropdownHeader: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  signedInAs: {
+    fontSize: FontSize.xs,
+    color: Colors.gray400,
+    marginBottom: 4,
+  },
+  dropdownName: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray900,
+  },
+  dropdownEmail: {
+    fontSize: FontSize.xs,
+    color: Colors.gray500,
+    marginTop: 2,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: Colors.gray100,
+    marginVertical: Spacing.xs,
+  },
+  dropdownItem: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+  },
+  dropdownItemText: {
+    fontSize: FontSize.sm,
+    color: Colors.gray700,
+    fontWeight: FontWeight.medium,
+  },
+
+  // ── Quick actions ──
   quickCard: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     backgroundColor: Colors.white,
     marginHorizontal: Spacing.base,
     borderRadius: Radius.xl,
-    paddingVertical: Spacing.xl,
+    paddingVertical: Platform.OS === 'web' ? Spacing.md : Spacing.xl,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.gray100,
@@ -1271,13 +1489,13 @@ const sStyles = StyleSheet.create({
   },
   qaBtn: {
     alignItems: 'center',
-    gap: 8,
+    gap: Platform.OS === 'web' ? 6 : 8,
     flex: 1,
   },
   qaIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: Platform.OS === 'web' ? 44 : 56,
+    height: Platform.OS === 'web' ? 44 : 56,
+    borderRadius: Platform.OS === 'web' ? 12 : 16,
     alignItems: 'center',
     justifyContent: 'center',
   },

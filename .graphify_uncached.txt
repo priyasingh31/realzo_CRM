@@ -1,7 +1,7 @@
 README.md
-assets\adaptive-icon.png
-assets\favicon.png
-assets\icon.png
-assets\notification-icon.png
+assets\adaptive-Fav.png
+assets\favFav.png
+assets\Fav.png
+assets\notification-Fav.png
 assets\splash.png
 assets\notification.wav

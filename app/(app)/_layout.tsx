@@ -1,7 +1,8 @@
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs, Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
+import { AppState, AppStateStatus, Platform, View, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { WebSidebar } from '@/components/ui/WebSidebar';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Lead } from '@/types';
@@ -12,8 +13,11 @@ import { registerForPushNotifications, addNotificationListener, sendLocalNotific
 
 export default function AppLayout() {
   const { user, isAuthenticated } = useAuthStore();
+  const { width } = useWindowDimensions();
+  const router = useRouter();
+  const isDesktop = Platform.OS === 'web' && width >= 1024;
 
-  const lastSyncRef = useRef<number>(0); // timestamp of last foreground sync
+  const lastSyncRef = useRef<number>(0);
 
   // ── Push notification registration + listener ──────────────────────────────
   useEffect(() => {
@@ -118,27 +122,28 @@ export default function AppLayout() {
 
   if (!isAuthenticated || !user) return <Redirect href="/(auth)/login" />;
 
-  const role = user.role;
+  const role      = user.role;
   const isAdmin   = role === 'admin';
   const isManager = role === 'manager';
   const isMIS     = role === 'mis';
   const isSales   = role === 'sales';
 
-  return (
+  const tabs = (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.gray400,
-        tabBarStyle: {
-          backgroundColor: Colors.white,
-          borderTopColor: Colors.gray100,
-          height: Platform.OS === 'web' ? 56 : Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'web' ? 6 : Platform.OS === 'ios' ? 25 : 10,
-          paddingTop: 8,
-          ...(Platform.OS === 'web' && { boxShadow: '0 -1px 0 #e5e7eb' } as any),
-        },
-        tabBarLabelStyle: { fontSize: Platform.OS === 'web' ? 12 : 11, fontWeight: '600' },
+        tabBarStyle: isDesktop
+          ? { display: 'none' } as any
+          : {
+              backgroundColor: Colors.white,
+              borderTopColor: Colors.gray100,
+              height: Platform.OS === 'ios' ? 85 : 65,
+              paddingBottom: Platform.OS === 'ios' ? 25 : 10,
+              paddingTop: 8,
+            },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
@@ -155,6 +160,36 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
+      {/* FAB centre button — adds a new lead */}
+      <Tabs.Screen
+        name="more/index"
+        options={{
+          title: '',
+          tabBarButton: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/leads/new')}
+              style={{
+                top: -14,
+                width: 54,
+                height: 54,
+                borderRadius: 27,
+                backgroundColor: Colors.primary,
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: Colors.primary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.35,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="add" size={28} color="#fff" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      {/* Team — visible to admin + manager only */}
       <Tabs.Screen
         name="team/index"
         options={{
@@ -163,6 +198,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
         }}
       />
+      {/* Reports — visible to admin, MIS, and manager */}
       <Tabs.Screen
         name="reports/index"
         options={{
@@ -189,15 +225,8 @@ export default function AppLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="pipeline/index"
-        options={{
-          title: 'Pipeline',
-          href: isSales ? null : undefined,
-          tabBarIcon: ({ color, size }) => <Ionicons name="git-branch-outline" size={size} color={color} />,
-        }}
-      />
-      {/* Hidden screens */}
+      {/* Hidden from tab bar */}
+      <Tabs.Screen name="pipeline/index"        options={{ href: null }} />
       <Tabs.Screen name="settings/projects"     options={{ href: null }} />
       <Tabs.Screen name="settings/pipeline"     options={{ href: null }} />
       <Tabs.Screen name="settings/sources"      options={{ href: null }} />
@@ -211,4 +240,15 @@ export default function AppLayout() {
       <Tabs.Screen name="team/agent/[agentId]"  options={{ href: null }} />
     </Tabs>
   );
+
+  if (isDesktop) {
+    return (
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        <WebSidebar />
+        <View style={{ flex: 1 }}>{tabs}</View>
+      </View>
+    );
+  }
+
+  return tabs;
 }
