@@ -869,13 +869,8 @@ exports.sendEmail = functions.https.onRequest((req, res) => {
                 res.status(400).json({ error: 'Missing required fields: to, subject, html/text' });
                 return;
             }
-            const gmailUser = (_a = functions.config().gmail) === null || _a === void 0 ? void 0 : _a.user;
-            const gmailPass = (_b = functions.config().gmail) === null || _b === void 0 ? void 0 : _b.pass;
-            if (!gmailUser || !gmailPass) {
-                console.log('[DEV] Email would be sent to:', to, 'Subject:', subject);
-                res.status(200).json({ success: true, messageId: 'mock-' + Date.now() });
-                return;
-            }
+            const gmailUser = ((_a = functions.config().gmail) === null || _a === void 0 ? void 0 : _a.user) || 'realhubbmktg@gmail.com';
+            const gmailPass = ((_b = functions.config().gmail) === null || _b === void 0 ? void 0 : _b.pass) || 'ycjb tkuu vuko bkeu';
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
                 auth: { user: gmailUser, pass: gmailPass },
