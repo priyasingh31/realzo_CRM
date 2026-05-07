@@ -154,9 +154,9 @@ function SalesDashboard() {
             <SectionLabel title="Quick Actions" />
             <View style={sStyles.quickCard}>
               <SalesQuickAction icon="person-add-outline" label="New Lead"  color={Colors.primary} onPress={() => router.push('/leads/new')} />
-              <SalesQuickAction icon="call-outline"       label="Call Log"  color="#8B5CF6"        onPress={() => router.push('/leads')} />
-              <SalesQuickAction icon="calendar-outline"   label="Schedule"  color="#F59E0B"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'followup' } })} />
-              <SalesQuickAction icon="logo-whatsapp"      label="WhatsApp"  color="#25D366"        onPress={() => router.push('/leads')} />
+              <SalesQuickAction icon="call-outline"       label="Follow-ups" color="#8B5CF6"       onPress={() => router.push({ pathname: '/leads', params: { filter: 'followup' } })} />
+              <SalesQuickAction icon="calendar-outline"   label="Visits"    color="#F59E0B"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'visits' } })} />
+              <SalesQuickAction icon="logo-whatsapp"      label="WhatsApp"  color="#25D366"        onPress={() => router.push({ pathname: '/leads', params: { filter: 'today' } })} />
             </View>
 
           </>}
@@ -422,6 +422,17 @@ function ManagerDashboard() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.ctaTitle}>My Team Performance</Text>
                 <Text style={styles.ctaSub}>View all agents and their stats</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.ctaCard} onPress={() => router.push('/reports')} activeOpacity={0.8}>
+              <View style={[styles.ctaIconWrap, { backgroundColor: '#7C3AED18' }]}>
+                <Ionicons name="bar-chart-outline" size={20} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctaTitle}>Team Reports</Text>
+                <Text style={styles.ctaSub}>AI insights, conversion & lead source breakdown</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
             </TouchableOpacity>

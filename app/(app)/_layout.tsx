@@ -63,12 +63,11 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user?.uid || !user?.role || !isAuthenticated) return;
 
-    const isAdminUser = user.role === 'admin' || user.role === 'manager';
-    const q = isAdminUser
-      ? user.role === 'manager'
+    const q = user.role === 'admin' || user.role === 'mis'
+      ? query(collection(db, 'leads'), orderBy('createdAt', 'desc'))
+      : user.role === 'manager'
         ? query(collection(db, 'leads'), where('managerId', '==', user.uid), orderBy('createdAt', 'desc'))
-        : query(collection(db, 'leads'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'leads'), where('assignedTo', '==', user.uid), orderBy('createdAt', 'desc'));
+        : query(collection(db, 'leads'), where('assignedTo', '==', user.uid), orderBy('createdAt', 'desc'));
 
     const TEN_MIN = 10 * 60 * 1000;
     // useRef so the flag survives re-renders without resetting
@@ -168,7 +167,7 @@ export default function AppLayout() {
         name="reports/index"
         options={{
           title: 'Reports',
-          href: isAdmin || isMIS ? undefined : null,
+          href: isAdmin || isMIS || isManager ? undefined : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
         }}
       />

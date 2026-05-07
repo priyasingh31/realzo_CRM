@@ -8,9 +8,11 @@ type Props = {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  rightAction?: { icon: string; onPress: () => void };
+  rightAction2?: { icon: string; onPress: () => void };
 };
 
-export const Header = ({ title, subtitle, showBack }: Props) => {
+export const Header = ({ title, subtitle, showBack, rightAction, rightAction2 }: Props) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -26,6 +28,16 @@ export const Header = ({ title, subtitle, showBack }: Props) => {
           <Text style={styles.title}>{title}</Text>
           {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>
+        {rightAction2 && (
+          <TouchableOpacity onPress={rightAction2.onPress} style={styles.backBtn}>
+            <Ionicons name={rightAction2.icon as any} size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
+        {rightAction && (
+          <TouchableOpacity onPress={rightAction.onPress} style={styles.backBtn}>
+            <Ionicons name={rightAction.icon as any} size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

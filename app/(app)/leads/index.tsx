@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, Modal, ScrollView,
+  TextInput, Modal, ScrollView, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,14 +24,14 @@ function safeFormatDate(val: unknown, fmt: string, fallback = ''): string {
   const d = toDate(val);
   return d ? format(d, fmt) : fallback;
 }
-import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { sendLocalNotification } from '@/services/notificationService';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import { isWeb, WEB_MAX_WIDTH } from '@/utils/responsive';
-import { Lead, LeadSource, LeadStatus, LeadComment } from '@/types';
+import { Lead, LeadSource, LeadStatus, LeadComment, User } from '@/types';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: string }> = {
@@ -84,6 +84,7 @@ export default function LeadsScreen() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all' | 'unassigned'>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showCRMModal, setShowCRMModal] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<Lead | null>(null);
 
   const role    = user?.role;
   const isAdmin = role === 'admin' || role === 'manager';
@@ -360,6 +361,7 @@ export default function LeadsScreen() {
                 lead={item}
                 onPress={() => router.push({ pathname: '/leads/[id]', params: { id: item.id } })}
                 onCRM={() => openCRM(item)}
+                onAssign={isRootAdmin && !item.assignedTo ? () => setAssignTarget(item) : undefined}
               />
             )}
           />
@@ -377,6 +379,17 @@ export default function LeadsScreen() {
           currentUserRole={user?.role ?? 'sales'}
         />
       )}
+
+      {/* Assign Lead Modal */}
+      {assignTarget && (
+        <AssignLeadModal
+          lead={assignTarget}
+          visible={!!assignTarget}
+          onClose={() => setAssignTarget(null)}
+          currentUserId={user?.uid ?? ''}
+          currentUserName={user?.displayName ?? ''}
+        />
+      )}
     </View>
   );
 }
@@ -388,7 +401,9 @@ const META_PAGE_LABELS: Record<string, string> = {
 };
 
 // ─── Lead Row ─────────────────────────────────────────────────────────────────
-function LeadRow({ lead, onPress, onCRM }: { lead: Lead; onPress: () => void; onCRM: () => void }) {
+function LeadRow({ lead, onPress, onCRM, onAssign }: {
+  lead: Lead; onPress: () => void; onCRM: () => void; onAssign?: () => void;
+}) {
   const cfg = STATUS_CONFIG[lead.status] ?? STATUS_CONFIG.new;
   const { user: currentUser } = useAuthStore();
   const isSalesUser = currentUser?.role === 'sales';
@@ -482,6 +497,13 @@ function LeadRow({ lead, onPress, onCRM }: { lead: Lead; onPress: () => void; on
         </View>
       </TouchableOpacity>
 
+      {/* Assign button — admin only, unassigned leads */}
+      {onAssign && (
+        <TouchableOpacity style={styles.assignBtn} onPress={onAssign} activeOpacity={0.8}>
+          <Ionicons name="person-add-outline" size={16} color={Colors.warning} />
+          <Text style={styles.assignBtnText}>Assign</Text>
+        </TouchableOpacity>
+      )}
       {/* CRM quick action */}
       <TouchableOpacity style={styles.crmBtn} onPress={onCRM} activeOpacity={0.8}>
         <Ionicons name="create-outline" size={18} color={Colors.primary} />
@@ -754,10 +776,263 @@ const styles = StyleSheet.create({
   agentRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   agentTag: { fontSize: 10, color: Colors.gray400, flexShrink: 1 },
   followUpText: { fontSize: 10, color: Colors.primary, flexShrink: 0 },
+  assignBtn: { flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, backgroundColor: Colors.warningLight, gap: 2 },
+  assignBtnText: { fontSize: 9, fontWeight: FontWeight.bold, color: Colors.warning },
   crmBtn: { width: 42, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primaryLight },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.semibold, color: Colors.gray500 },
   emptySub: { fontSize: FontSize.sm, color: Colors.gray400, textAlign: 'center', paddingHorizontal: 40 },
+});
+
+// ─── Assign Lead Modal ────────────────────────────────────────────────────────
+function AssignLeadModal({
+  lead, visible, onClose, currentUserId, currentUserName,
+}: {
+  lead: Lead; visible: boolean; onClose: () => void;
+  currentUserId: string; currentUserName: string;
+}) {
+  type Mode = 'manager' | 'sales';
+  const [mode, setMode]                           = useState<Mode>('manager');
+  const [managers, setManagers]                   = useState<User[]>([]);
+  const [salesPersons, setSalesPersons]           = useState<User[]>([]);
+  const [selectedManager, setSelectedManager]     = useState<User | null>(null);
+  const [selectedSP, setSelectedSP]               = useState<User | null>(null);
+  const [note, setNote]                           = useState('');
+  const [saving, setSaving]                       = useState(false);
+  const [loading, setLoading]                     = useState(true);
+
+  useEffect(() => {
+    if (!visible) return;
+    setMode('manager'); setSelectedManager(null); setSelectedSP(null); setNote('');
+    setLoading(true);
+    Promise.all([
+      getDocs(query(collection(db, 'users'), where('role', '==', 'manager'), where('isActive', '==', true))),
+      getDocs(query(collection(db, 'users'), where('role', '==', 'sales'),   where('isActive', '==', true))),
+    ]).then(([mSnap, spSnap]) => {
+      setManagers(mSnap.docs.map(d => ({ uid: d.id, ...d.data() } as User)));
+      setSalesPersons(spSnap.docs.map(d => ({ uid: d.id, ...d.data() } as User)));
+    }).catch(console.error).finally(() => setLoading(false));
+  }, [visible]);
+
+  const teamOf = (managerId: string) => salesPersons.filter(sp => sp.managerId === managerId);
+  const canSave = mode === 'manager' ? !!selectedManager : !!selectedSP;
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      let assignedTo: string, assignedToName: string, managerId: string | null = null;
+
+      if (mode === 'manager' && selectedManager) {
+        const team = teamOf(selectedManager.uid);
+        if (!team.length) {
+          Alert.alert('No Sales Persons', `${selectedManager.displayName} has no active sales persons.`);
+          setSaving(false); return;
+        }
+        const sp = team[Math.floor(Math.random() * team.length)];
+        assignedTo = sp.uid; assignedToName = sp.displayName; managerId = selectedManager.uid;
+      } else if (selectedSP) {
+        assignedTo = selectedSP.uid; assignedToName = selectedSP.displayName;
+        managerId = selectedSP.managerId ?? null;
+      } else return;
+
+      await updateDoc(doc(db, 'leads', lead.id), {
+        assignedTo, assignedToName, managerId,
+        status: 'assigned', respondedAt: null,
+        assignmentNote: note.trim() || null,
+        updatedAt: new Date().toISOString(),
+      });
+
+      await addDoc(collection(db, 'leads', lead.id, 'activities'), {
+        type: 'assigned',
+        description: `Assigned to ${assignedToName} by ${currentUserName}${note.trim() ? ` — "${note.trim()}"` : ''}`,
+        performedBy: currentUserId,
+        performedByName: currentUserName,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Push notification to the assigned sales person via Cloud Function
+      await addDoc(collection(db, 'notifications'), {
+        type: 'lead_assigned',
+        userId: assignedTo,
+        title: '🔔 New Lead Assigned to You!',
+        body: `${lead.name} (${lead.phone})${note.trim() ? ` — "${note.trim()}"` : ' — Respond within 10 minutes!'}`,
+        leadId: lead.id,
+        assignedAgent: assignedTo,
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+
+      onClose();
+    } catch (e) {
+      Alert.alert('Error', String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={assign.container}>
+          {/* Header */}
+          <View style={assign.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={assign.title}>Assign Lead</Text>
+              <Text style={assign.sub} numberOfLines={1}>{lead.name} · {lead.phone}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={assign.closeBtn}>
+              <Ionicons name="close" size={22} color={Colors.gray600} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Mode toggle */}
+          <View style={assign.modeRow}>
+            <TouchableOpacity
+              style={[assign.modeBtn, mode === 'manager' && assign.modeBtnActive]}
+              onPress={() => { setMode('manager'); setSelectedManager(null); }}
+            >
+              <Ionicons name="people-outline" size={14} color={mode === 'manager' ? Colors.white : Colors.gray500} />
+              <Text style={[assign.modeBtnText, mode === 'manager' && assign.modeBtnTextActive]}>Via Manager</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[assign.modeBtn, mode === 'sales' && assign.modeBtnActive]}
+              onPress={() => { setMode('sales'); setSelectedSP(null); }}
+            >
+              <Ionicons name="person-outline" size={14} color={mode === 'sales' ? Colors.white : Colors.gray500} />
+              <Text style={[assign.modeBtnText, mode === 'sales' && assign.modeBtnTextActive]}>Direct to Sales</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: Spacing.base, paddingBottom: 80, gap: Spacing.sm }}>
+            {loading ? <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} /> : <>
+
+              {mode === 'manager' ? (
+                <>
+                  <Text style={assign.sectionLabel}>
+                    Select Manager — lead will be randomly assigned to one of their sales persons
+                  </Text>
+                  {managers.length === 0
+                    ? <Text style={assign.emptyText}>No active managers found</Text>
+                    : managers.map(mgr => {
+                      const team = teamOf(mgr.uid);
+                      const sel  = selectedManager?.uid === mgr.uid;
+                      return (
+                        <TouchableOpacity key={mgr.uid}
+                          style={[assign.userRow, sel && assign.userRowSel]}
+                          onPress={() => setSelectedManager(sel ? null : mgr)} activeOpacity={0.8}>
+                          <View style={[assign.avatar, { backgroundColor: '#7C3AED18' }]}>
+                            <Text style={[assign.avatarText, { color: '#7C3AED' }]}>{mgr.displayName.charAt(0)}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={assign.userName}>{mgr.displayName}</Text>
+                            <Text style={assign.userSub}>
+                              {team.length} sales person{team.length !== 1 ? 's' : ''}{mgr.region ? ` · ${mgr.region}` : ''}
+                            </Text>
+                          </View>
+                          {sel && <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  {selectedManager && (
+                    <View style={assign.randomNote}>
+                      <Ionicons name="shuffle-outline" size={13} color={Colors.primary} />
+                      <Text style={assign.randomNoteText}>
+                        1 of {teamOf(selectedManager.uid).length} sales person{teamOf(selectedManager.uid).length !== 1 ? 's' : ''} will be randomly selected from {selectedManager.displayName}'s team
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={assign.sectionLabel}>Select Sales Person</Text>
+                  {salesPersons.length === 0
+                    ? <Text style={assign.emptyText}>No active sales persons found</Text>
+                    : salesPersons.map(sp => {
+                      const sel = selectedSP?.uid === sp.uid;
+                      const mgr = managers.find(m => m.uid === sp.managerId);
+                      return (
+                        <TouchableOpacity key={sp.uid}
+                          style={[assign.userRow, sel && assign.userRowSel]}
+                          onPress={() => setSelectedSP(sel ? null : sp)} activeOpacity={0.8}>
+                          <View style={[assign.avatar, { backgroundColor: Colors.primary + '18' }]}>
+                            <Text style={[assign.avatarText, { color: Colors.primary }]}>{sp.displayName.charAt(0)}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={assign.userName}>{sp.displayName}</Text>
+                            <Text style={assign.userSub}>
+                              {mgr ? `Under ${mgr.displayName}` : 'No manager assigned'}{sp.region ? ` · ${sp.region}` : ''}
+                            </Text>
+                          </View>
+                          {sel && <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                </>
+              )}
+
+              {/* Assignment note */}
+              <Text style={[assign.sectionLabel, { marginTop: Spacing.md }]}>
+                Assignment Note <Text style={{ color: Colors.gray400, fontWeight: '400', textTransform: 'none' }}>(visible to sales person)</Text>
+              </Text>
+              <TextInput
+                style={assign.noteInput}
+                placeholder="e.g. High-budget client, focus on luxury units. Follow up within 2 hours."
+                value={note}
+                onChangeText={setNote}
+                multiline
+                numberOfLines={3}
+                placeholderTextColor={Colors.gray400}
+                textAlignVertical="top"
+              />
+
+              <TouchableOpacity
+                style={[assign.saveBtn, (!canSave || saving) && assign.saveBtnDisabled]}
+                onPress={handleSave} disabled={!canSave || saving} activeOpacity={0.85}>
+                {saving
+                  ? <ActivityIndicator color={Colors.white} size="small" />
+                  : <Text style={assign.saveBtnText}>
+                      {mode === 'manager' && selectedManager
+                        ? `Assign via ${selectedManager.displayName}`
+                        : mode === 'sales' && selectedSP
+                          ? `Assign to ${selectedSP.displayName}`
+                          : 'Select a person above'}
+                    </Text>}
+              </TouchableOpacity>
+            </>}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const assign = StyleSheet.create({
+  container:        { flex: 1, backgroundColor: Colors.white },
+  header:           { flexDirection: 'row', alignItems: 'center', padding: Spacing.base, borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
+  title:            { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.navy },
+  sub:              { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 2 },
+  closeBtn:         { padding: 6 },
+  modeRow:          { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.base, paddingBottom: Spacing.sm, backgroundColor: Colors.gray50, borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
+  modeBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: Spacing.sm, borderRadius: Radius.md, backgroundColor: Colors.gray100 },
+  modeBtnActive:    { backgroundColor: Colors.primary },
+  modeBtnText:      { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray500 },
+  modeBtnTextActive:{ color: Colors.white },
+  sectionLabel:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray500, textTransform: 'uppercase', letterSpacing: 0.5 },
+  emptyText:        { fontSize: FontSize.sm, color: Colors.gray400, textAlign: 'center', paddingVertical: Spacing.xl },
+  userRow:          { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray100, backgroundColor: Colors.white },
+  userRowSel:       { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  avatar:           { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarText:       { fontSize: FontSize.base, fontWeight: FontWeight.bold },
+  userName:         { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.navy },
+  userSub:          { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 1 },
+  randomNote:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primaryLight, padding: Spacing.sm, borderRadius: Radius.md },
+  randomNoteText:   { fontSize: FontSize.xs, color: Colors.primary, flex: 1, lineHeight: 16 },
+  noteInput:        { borderWidth: 1, borderColor: Colors.gray200, borderRadius: Radius.md, padding: Spacing.md, fontSize: FontSize.sm, color: Colors.gray800, minHeight: 80 },
+  saveBtn:          { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  saveBtnDisabled:  { backgroundColor: Colors.gray300 },
+  saveBtnText:      { color: Colors.white, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 });
 
 const modal = StyleSheet.create({

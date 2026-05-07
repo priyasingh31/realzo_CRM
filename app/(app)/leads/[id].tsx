@@ -172,6 +172,17 @@ export default function LeadDetailScreen() {
           )}
         </View>
 
+        {/* ── Assignment Note (visible to all, especially sales) ── */}
+        {!!lead.assignmentNote && (
+          <View style={styles.assignNoteCard}>
+            <View style={styles.assignNoteHeader}>
+              <Ionicons name="information-circle" size={15} color="#B45309" />
+              <Text style={styles.assignNoteLabel}>Note from Admin</Text>
+            </View>
+            <Text style={styles.assignNoteText}>{lead.assignmentNote}</Text>
+          </View>
+        )}
+
         {/* ── Quick Actions ── */}
         <View style={styles.actionRow}>
           <ActionBtn icon="call" label="Call" color={Colors.primary} bg={Colors.primaryLight} onPress={handleCall} />
@@ -556,6 +567,10 @@ const styles = StyleSheet.create({
   activityType:{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.navy, marginBottom: 2 },
   activityText:{ fontSize: FontSize.sm, color: Colors.gray700 },
   activityMeta:{ fontSize: FontSize.xs, color: Colors.gray400, marginTop: 3 },
+  assignNoteCard:   { backgroundColor: '#FFFBEB', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#FDE68A', marginBottom: Spacing.xs },
+  assignNoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 5 },
+  assignNoteLabel:  { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#B45309', textTransform: 'uppercase', letterSpacing: 0.4 },
+  assignNoteText:   { fontSize: FontSize.sm, color: '#92400E', lineHeight: 20 },
 });
 
 const aiStyles = StyleSheet.create({

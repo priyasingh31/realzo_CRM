@@ -36,6 +36,8 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
     dead:                 { label: 'Dead',            bg: Colors.gray100,      color: Colors.gray500 },
     invalid:              { label: 'Invalid',         bg: '#F9FAFB',           color: Colors.gray400 },
     qualified:            { label: 'Qualified',       bg: Colors.primaryLight, color: Colors.primary },
+    rnr:                  { label: 'RNR',             bg: '#FEF9C3',           color: '#A16207' },
+    switch_off:           { label: 'Switch Off',      bg: '#F3F4F6',           color: '#6B7280' },
   };
   const { label, bg, color } = config[status] ?? config.new;
   return <Badge label={label} bgColor={bg} color={color} size="sm" />;

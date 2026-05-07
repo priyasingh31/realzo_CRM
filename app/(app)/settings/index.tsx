@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,7 @@ import {
   WHATSAPP_ACCOUNTS,
 } from '@/services/whatsappService';
 import { getMetaSyncStatus, syncConnectedPages } from '@/services/metaLeadsService';
+import { sendLocalNotification } from '@/services/notificationService';
 import {
   connectMetaAccount,
   disconnectMeta,
@@ -55,6 +56,8 @@ export default function SettingsScreen() {
   const [metaConnection, setMetaConnection] = useState<MetaConnection | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [testingNotif, setTestingNotif] = useState(false);
+  const [notifTestResult, setNotifTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const [managerName, setManagerName] = useState<string>('—');
   const [assignedProject, setAssignedProject] = useState<string>('—');
@@ -233,6 +236,38 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  const handleTestNotification = useCallback(async () => {
+    setTestingNotif(true);
+    setNotifTestResult(null);
+    try {
+      // Step 1: fire a local notification immediately (works in Expo Go + builds)
+      await sendLocalNotification(
+        '✅ Test Notification',
+        'If you see this, local notifications are working!',
+        { type: 'test' },
+        'general'
+      );
+
+      // Step 2: write a Firestore notification doc so Cloud Function sends FCM push
+      // (only works in preview/production builds with push token registered)
+      if (user?.uid) {
+        await addDoc(collection(db, 'notifications'), {
+          type: 'test',
+          userId: user.uid,
+          title: '✅ Test Push Notification',
+          body: 'FCM push notifications are working correctly!',
+          read: false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      setNotifTestResult({ ok: true, msg: 'Local notification fired! FCM push also triggered (check notification shade).' });
+    } catch (e: any) {
+      setNotifTestResult({ ok: false, msg: `Failed: ${e?.message ?? String(e)}` });
+    } finally {
+      setTestingNotif(false);
+    }
+  }, [user?.uid]);
+
   const verifyBothAccounts = async () => {
     setVerifying(true);
     setAcc1Status({ status: 'checking' });
@@ -272,9 +307,10 @@ export default function SettingsScreen() {
   const isSales = user?.role === 'sales';
 
   const roleLabel =
-    user?.role === 'admin' ? 'Administrator'
+    user?.role === 'admin'   ? 'Administrator'
     : user?.role === 'manager' ? 'Manager'
-    : 'Agent';
+    : user?.role === 'mis'     ? 'MIS Analyst'
+    : 'Sales Agent';
   const roleColor =
     user?.role === 'admin' ? Colors.danger
     : user?.role === 'manager' ? Colors.accent
@@ -451,6 +487,40 @@ export default function SettingsScreen() {
             </View>
           </>
         )}
+
+        {/* ── Test Notifications ── */}
+        <SectionLabel title="Notifications" />
+        <View style={styles.notifTestCard}>
+          <View style={styles.notifTestInfo}>
+            <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.notifTestTitle}>Test Notifications</Text>
+              <Text style={styles.notifTestSub}>Fires a local alert + FCM push to verify the full notification pipeline</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.notifTestBtn, testingNotif && { opacity: 0.6 }]}
+            onPress={handleTestNotification}
+            disabled={testingNotif}
+            activeOpacity={0.8}
+          >
+            {testingNotif
+              ? <ActivityIndicator size="small" color={Colors.white} />
+              : <><Ionicons name="volume-high-outline" size={14} color={Colors.white} /><Text style={styles.notifTestBtnText}>Send Test</Text></>}
+          </TouchableOpacity>
+          {notifTestResult && (
+            <View style={[styles.notifTestResult, notifTestResult.ok ? styles.notifTestResultOk : styles.notifTestResultErr]}>
+              <Ionicons
+                name={notifTestResult.ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+                size={13}
+                color={notifTestResult.ok ? Colors.success : Colors.danger}
+              />
+              <Text style={[styles.notifTestResultText, { color: notifTestResult.ok ? Colors.success : Colors.danger }]}>
+                {notifTestResult.msg}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* ── About ── */}
         <SectionLabel title="About" />
@@ -1093,4 +1163,16 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: FontWeight.semibold,
   },
+
+  // ── Test notification card ──
+  notifTestCard:       { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.base, borderWidth: 1, borderColor: Colors.gray100, gap: Spacing.sm },
+  notifTestInfo:       { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+  notifTestTitle:      { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.navy },
+  notifTestSub:        { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 2, lineHeight: 16 },
+  notifTestBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.base },
+  notifTestBtnText:    { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.white },
+  notifTestResult:     { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: Spacing.sm, borderRadius: Radius.md },
+  notifTestResultOk:   { backgroundColor: Colors.successLight },
+  notifTestResultErr:  { backgroundColor: Colors.dangerLight },
+  notifTestResultText: { fontSize: FontSize.xs, flex: 1, lineHeight: 16 },
 });

@@ -122,7 +122,7 @@ async function assignRoundRobin(
       title: '🔔 New Lead Assigned to You!',
       body: `${leadName}${leadPhone ? ` (${leadPhone})` : ''} — Respond within 10 min!`,
       data: { type: 'lead_assigned', leadId },
-      sound: 'lead_alert.wav',
+      sound: 'mixkit-software-interface-back-2575.wav',
       priority: 'high',
       channelId: 'new_leads',
     }]);
@@ -412,7 +412,7 @@ async function processMetaAccount(
             title: '🔔 New Lead from Facebook!',
             body: `${name} (${phone || 'no phone'}) — ${account.label}`,
             data: { type: 'new_lead', leadId: savedId },
-            sound: 'lead_alert.wav', priority: 'high', channelId: 'new_leads',
+            sound: 'mixkit-software-interface-back-2575.wav', priority: 'high', channelId: 'new_leads',
           }))).catch(e => console.warn('Push failed:', e));
         }).catch(() => {});
 
@@ -528,7 +528,7 @@ async function escalateLead(leadId: string, lead: admin.firestore.DocumentData) 
       title: '⚠️ Lead Not Responded!',
       body: `${assignedToName || 'Sales'} hasn't contacted ${leadName} in 10 minutes`,
       data: { type: 'lead_escalation', leadId },
-      sound: 'escalation_alert.wav',
+      sound: 'mixkit-software-interface-back-2575.wav',
       priority: 'high' as const,
       channelId: 'escalations',
     }));
@@ -777,7 +777,7 @@ export const assignLeadToSales = functions.https.onCall(async (data, context) =>
         title: '🔔 New Lead Assigned!',
         body: `New lead from ${(await db.collection(COLLECTIONS.LEADS).doc(leadId).get()).data()?.source || 'unknown source'}`,
         data: { type: 'lead_assigned', leadId },
-        sound: 'lead_alert.wav',
+        sound: 'mixkit-software-interface-back-2575.wav',
         priority: 'high',
         channelId: 'new_leads',
       }),
@@ -1144,32 +1144,71 @@ export const onNewNotification = functions.firestore
   .document('notifications/{notifId}')
   .onCreate(async (snap) => {
     const n = snap.data();
-    if (n.type !== 'new_lead') return; // only handle new lead alerts
-
-    const src = n.metaAccount ? `Meta Acc ${n.metaAccount}` : (n.source ?? 'New Lead');
-    const bodyParts = [n.campaignName, n.requirements || n.phone].filter(Boolean);
-    const body = bodyParts.join(' · ') || n.phone || '';
+    const SOUND = 'mixkit-software-interface-back-2575.wav';
 
     try {
-      const tokens = await getAllUserTokens();
-      if (!tokens.length) return;
-
-      // Expo push API accepts max 100 messages per request — chunk if needed
-      const chunks: string[][] = [];
-      for (let i = 0; i < tokens.length; i += 100) chunks.push(tokens.slice(i, i + 100));
-
-      for (const chunk of chunks) {
-        await sendPushBatch(chunk.map(token => ({
+      // ── lead_assigned: targeted push to the specific sales person ─────────────
+      if (n.type === 'lead_assigned') {
+        if (!n.userId) return;
+        const userDoc = await db.collection(COLLECTIONS.USERS).doc(n.userId).get();
+        const token = userDoc.data()?.pushToken;
+        if (!token) return;
+        await sendPushBatch([{
           to: token,
-          title: `🔔 New Lead: ${n.leadName ?? 'Unknown'}`,
-          body: `${src} · ${body}`,
-          data: { type: 'new_lead', leadId: n.leadId },
-          sound: 'default',
+          title: n.title ?? '🔔 New Lead Assigned!',
+          body: n.body ?? 'A lead has been assigned to you',
+          data: { type: 'lead_assigned', leadId: n.leadId },
+          sound: SOUND,
           priority: 'high',
           channelId: 'new_leads',
-        })));
+        }]);
+        console.log(`[onNewNotification] lead_assigned push sent to ${n.userId}`);
+        return;
       }
-      console.log(`[onNewNotification] Pushed to ${tokens.length} users`);
+
+      // ── new_lead: broadcast to all active users ───────────────────────────────
+      if (n.type === 'new_lead') {
+        const src = n.metaAccount ? `Meta Acc ${n.metaAccount}` : (n.source ?? 'New Lead');
+        const bodyParts = [n.campaignName, n.requirements || n.phone].filter(Boolean);
+        const body = bodyParts.join(' · ') || n.phone || '';
+
+        const tokens = await getAllUserTokens();
+        if (!tokens.length) return;
+
+        const chunks: string[][] = [];
+        for (let i = 0; i < tokens.length; i += 100) chunks.push(tokens.slice(i, i + 100));
+
+        for (const chunk of chunks) {
+          await sendPushBatch(chunk.map(token => ({
+            to: token,
+            title: `🔔 New Lead: ${n.leadName ?? 'Unknown'}`,
+            body: `${src} · ${body}`,
+            data: { type: 'new_lead', leadId: n.leadId },
+            sound: SOUND,
+            priority: 'high',
+            channelId: 'new_leads',
+          })));
+        }
+        console.log(`[onNewNotification] new_lead push sent to ${tokens.length} users`);
+        return;
+      }
+
+      // ── test: send back to the requesting user only ───────────────────────────
+      if (n.type === 'test' && n.userId) {
+        const userDoc = await db.collection(COLLECTIONS.USERS).doc(n.userId).get();
+        const token = userDoc.data()?.pushToken;
+        if (!token) return;
+        await sendPushBatch([{
+          to: token,
+          title: '✅ Test Notification',
+          body: 'Push notifications are working correctly!',
+          data: { type: 'test' },
+          sound: SOUND,
+          priority: 'high',
+          channelId: 'general',
+        }]);
+        console.log(`[onNewNotification] test push sent to ${n.userId}`);
+      }
     } catch (err) {
       console.error('[onNewNotification] Push failed:', err);
     }
