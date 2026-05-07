@@ -377,3 +377,9 @@ Login Credentials
   sales      sales3@relazo.com                  Sales@relazo2024!
   sales      sales4@relazo.com                  Sales@relazo2024!
   sales      sales5@relazo.com                  Sales@relazo2024!
+
+
+
+  app build command:
+
+  npx eas build --platform android --profile preview --non-interactive 2>&1

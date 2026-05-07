@@ -16,6 +16,9 @@ import { db } from '@/config/firebase';
 // Only true in Expo Go — preview/production builds have executionEnvironment = 'standalone'
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
+// Bundled notification sound (declared in app.json → expo-notifications → sounds)
+const ALERT_SOUND = 'mixkit-software-interface-back-2575.wav';
+
 // Configure how notifications appear when app is in foreground (works in Expo Go too)
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -50,16 +53,19 @@ export async function registerForPushNotifications(uid: string): Promise<string 
       lightColor: '#1A9B6C',
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       bypassDnd: true,
+      sound: ALERT_SOUND,
     });
     await Notifications.setNotificationChannelAsync('escalations', {
       name: 'Lead Escalations',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 1000, 500, 1000],
       lightColor: '#EF4444',
+      sound: ALERT_SOUND,
     });
     await Notifications.setNotificationChannelAsync('general', {
       name: 'General Notifications',
       importance: Notifications.AndroidImportance.DEFAULT,
+      sound: ALERT_SOUND,
     });
   }
 
@@ -110,7 +116,7 @@ export async function sendLocalNotification(
         body,
         data: data || {},
         // Custom sound only works in standalone/dev build, not Expo Go
-        ...(isExpoGo ? {} : { sound: channelId === 'new_leads' ? 'lead_alert.wav' : true }),
+        ...(isExpoGo ? {} : { sound: ALERT_SOUND }),
         ...(Platform.OS === 'android' && !isExpoGo && { channelId }),
       },
       trigger: null, // immediate
@@ -132,7 +138,7 @@ export async function scheduleEscalationReminder(
       title: '⚠️ Lead Not Responded!',
       body: `${leadName} hasn't been contacted yet. Respond now!`,
       data: { type: 'lead_escalation', leadId },
-      sound: 'escalation_alert.wav',
+      sound: ALERT_SOUND,
       ...(Platform.OS === 'android' && { channelId: 'escalations' }),
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: delaySeconds },

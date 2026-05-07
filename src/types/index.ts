@@ -100,6 +100,7 @@ export interface Lead {
   closureValue?: number;
   closureDate?: string;
   notes?: string;
+  assignmentNote?: string | null;
   createdAt: string;
   updatedAt: string;
   lastContactedAt?: string | null;

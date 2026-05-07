@@ -67,12 +67,11 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user?.uid || !user?.role || !isAuthenticated) return;
 
-    const isAdminUser = user.role === 'admin' || user.role === 'manager';
-    const q = isAdminUser
-      ? user.role === 'manager'
+    const q = user.role === 'admin' || user.role === 'mis'
+      ? query(collection(db, 'leads'), orderBy('createdAt', 'desc'))
+      : user.role === 'manager'
         ? query(collection(db, 'leads'), where('managerId', '==', user.uid), orderBy('createdAt', 'desc'))
-        : query(collection(db, 'leads'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'leads'), where('assignedTo', '==', user.uid), orderBy('createdAt', 'desc'));
+        : query(collection(db, 'leads'), where('assignedTo', '==', user.uid), orderBy('createdAt', 'desc'));
 
     const TEN_MIN = 10 * 60 * 1000;
     // useRef so the flag survives re-renders without resetting
@@ -123,6 +122,12 @@ export default function AppLayout() {
 
   if (!isAuthenticated || !user) return <Redirect href="/(auth)/login" />;
 
+  const role      = user.role;
+  const isAdmin   = role === 'admin';
+  const isManager = role === 'manager';
+  const isMIS     = role === 'mis';
+  const isSales   = role === 'sales';
+
   const tabs = (
     <Tabs
       screenOptions={{
@@ -155,7 +160,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
-      {/* FAB centre button */}
+      {/* FAB centre button — adds a new lead */}
       <Tabs.Screen
         name="more/index"
         options={{
@@ -184,10 +189,28 @@ export default function AppLayout() {
           ),
         }}
       />
+      {/* Team — visible to admin + manager only */}
+      <Tabs.Screen
+        name="team/index"
+        options={{
+          title: isAdmin ? 'Team' : 'My Team',
+          href: isAdmin || isManager ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-circle-outline" size={size} color={color} />,
+        }}
+      />
+      {/* Reports — visible to admin, MIS, and manager */}
+      <Tabs.Screen
+        name="reports/index"
+        options={{
+          title: 'Reports',
+          href: isAdmin || isMIS || isManager ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="notifications/index"
         options={{
-          title: 'Activities',
+          title: 'Alerts',
           tabBarBadge: missedCount > 0 ? missedCount : undefined,
           tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 10 },
           tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
@@ -196,13 +219,13 @@ export default function AppLayout() {
       <Tabs.Screen
         name="settings/index"
         options={{
-          title: 'More',
-          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal" size={size} color={color} />,
+          title: isSales ? 'Profile' : 'Settings',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name={isSales ? 'person-outline' : 'settings-outline'} size={size} color={color} />
+          ),
         }}
       />
       {/* Hidden from tab bar */}
-      <Tabs.Screen name="team/index"            options={{ href: null }} />
-      <Tabs.Screen name="reports/index"         options={{ href: null }} />
       <Tabs.Screen name="pipeline/index"        options={{ href: null }} />
       <Tabs.Screen name="settings/projects"     options={{ href: null }} />
       <Tabs.Screen name="settings/pipeline"     options={{ href: null }} />
