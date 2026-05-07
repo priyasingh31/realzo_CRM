@@ -231,13 +231,15 @@ export default function NewLeadScreen() {
           <Ionicons name="create-outline" size={20} color={activeTab === 'manual' ? Colors.primary : Colors.gray400} />
           <Text style={[styles.tabText, activeTab === 'manual' && styles.tabTextActive]}>Manual Entry</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'upload' && styles.tabActive]}
-          onPress={() => setActiveTab('upload')}
-        >
-          <Ionicons name="cloud-upload-outline" size={20} color={activeTab === 'upload' ? Colors.primary : Colors.gray400} />
-          <Text style={[styles.tabText, activeTab === 'upload' && styles.tabTextActive]}>Upload File</Text>
-        </TouchableOpacity>
+        {user?.role !== 'sales' && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'upload' && styles.tabActive]}
+            onPress={() => setActiveTab('upload')}
+          >
+            <Ionicons name="cloud-upload-outline" size={20} color={activeTab === 'upload' ? Colors.primary : Colors.gray400} />
+            <Text style={[styles.tabText, activeTab === 'upload' && styles.tabTextActive]}>Upload File</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}

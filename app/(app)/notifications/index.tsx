@@ -279,6 +279,8 @@ export default function NotificationsScreen() {
 function NewLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
   const sc  = sourceColor(lead);
   const src = sourceLabel(lead);
+  const { user: currentUser } = useAuthStore();
+  const isSalesUser = currentUser?.role === 'sales';
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -311,13 +313,16 @@ function NewLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
 
         {/* Row 2: source tag + campaign */}
         <View style={styles.cardRow}>
-          <View style={[styles.sourceTag, { borderColor: sc }]}>
-            <Ionicons
-              name={lead.source === 'google' ? 'logo-google' : lead.source === 'whatsapp' ? 'logo-whatsapp' : 'logo-facebook'}
-              size={10} color={sc}
-            />
-            <Text style={[styles.sourceTagText, { color: sc }]}>{src}</Text>
-          </View>
+          {/* Source tag — hidden for sales */}
+          {!isSalesUser && (
+            <View style={[styles.sourceTag, { borderColor: sc }]}>
+              <Ionicons
+                name={lead.source === 'google' ? 'logo-google' : lead.source === 'whatsapp' ? 'logo-whatsapp' : 'logo-facebook'}
+                size={10} color={sc}
+              />
+              <Text style={[styles.sourceTagText, { color: sc }]}>{src}</Text>
+            </View>
+          )}
           {lead.metaCampaignName ? (
             <View style={styles.campaignTag}>
               <Ionicons name="megaphone-outline" size={10} color="#7C3AED" />
@@ -340,13 +345,15 @@ function NewLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
           <Text style={styles.cardSub}>{lead.phone}</Text>
         </View>
 
-        {/* Copy button */}
-        <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
-          <Ionicons name={copied ? 'checkmark-outline' : 'copy-outline'} size={13} color={copied ? Colors.success : Colors.primary} />
-          <Text style={[styles.copyBtnText, copied && { color: Colors.success }]}>
-            {copied ? 'Copied!' : 'Copy Lead'}
-          </Text>
-        </TouchableOpacity>
+        {/* Copy button — hidden for sales */}
+        {!isSalesUser && (
+          <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
+            <Ionicons name={copied ? 'checkmark-outline' : 'copy-outline'} size={13} color={copied ? Colors.success : Colors.primary} />
+            <Text style={[styles.copyBtnText, copied && { color: Colors.success }]}>
+              {copied ? 'Copied!' : 'Copy Lead'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Ionicons name="chevron-forward" size={16} color={Colors.gray300} style={{ alignSelf: 'center' }} />
@@ -358,6 +365,8 @@ function NewLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
 function MissedLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
   const sc  = sourceColor(lead);
   const src = sourceLabel(lead);
+  const { user: currentUser } = useAuthStore();
+  const isSalesUser = currentUser?.role === 'sales';
   const mins = staleMins(lead);
   const agentName = lead.assignedToName ?? 'Unassigned';
   const urgency = mins > 60 ? Colors.danger : Colors.warning;
@@ -402,15 +411,18 @@ function MissedLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) 
           </Text>
         </View>
 
-        {/* Row 3: source */}
+        {/* Row 3: source + campaign */}
         <View style={styles.cardRow}>
-          <View style={[styles.sourceTag, { borderColor: sc }]}>
-            <Ionicons
-              name={lead.source === 'google' ? 'logo-google' : lead.source === 'whatsapp' ? 'logo-whatsapp' : 'logo-facebook'}
-              size={10} color={sc}
-            />
-            <Text style={[styles.sourceTagText, { color: sc }]}>{src}</Text>
-          </View>
+          {/* Source tag — hidden for sales */}
+          {!isSalesUser && (
+            <View style={[styles.sourceTag, { borderColor: sc }]}>
+              <Ionicons
+                name={lead.source === 'google' ? 'logo-google' : lead.source === 'whatsapp' ? 'logo-whatsapp' : 'logo-facebook'}
+                size={10} color={sc}
+              />
+              <Text style={[styles.sourceTagText, { color: sc }]}>{src}</Text>
+            </View>
+          )}
           {lead.metaCampaignName ? (
             <View style={styles.campaignTag}>
               <Ionicons name="megaphone-outline" size={10} color="#7C3AED" />
@@ -433,13 +445,15 @@ function MissedLeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) 
           <Text style={styles.cardSub}>{lead.phone}</Text>
         </View>
 
-        {/* Copy button */}
-        <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
-          <Ionicons name={copied ? 'checkmark-outline' : 'copy-outline'} size={13} color={copied ? Colors.success : Colors.primary} />
-          <Text style={[styles.copyBtnText, copied && { color: Colors.success }]}>
-            {copied ? 'Copied!' : 'Copy Lead'}
-          </Text>
-        </TouchableOpacity>
+        {/* Copy button — hidden for sales */}
+        {!isSalesUser && (
+          <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
+            <Ionicons name={copied ? 'checkmark-outline' : 'copy-outline'} size={13} color={copied ? Colors.success : Colors.primary} />
+            <Text style={[styles.copyBtnText, copied && { color: Colors.success }]}>
+              {copied ? 'Copied!' : 'Copy Lead'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Ionicons name="chevron-forward" size={16} color={Colors.gray300} style={{ alignSelf: 'center' }} />

@@ -2,13 +2,18 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Redirect } from 'expo-router';
 import { Header } from '@/components/ui/Header';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import { DEAL_STAGES } from '@/constants/theme';
+import { useAuthStore } from '@/store/authStore';
 
 export default function PipelineStagesScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+
+  if (user?.role === 'sales') return <Redirect href="/settings" />;
 
   return (
     <View style={styles.screen}>

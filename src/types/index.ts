@@ -182,7 +182,8 @@ export type NotificationType =
   | 'follow_up'
   | 'deal_update'
   | 'visit_reminder'
-  | 'mention';
+  | 'mention'
+  | 'status_change';
 
 export interface AppNotification {
   id: string;

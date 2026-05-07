@@ -935,14 +935,8 @@ export const sendEmail = functions.https.onRequest((req, res) => {
         return;
       }
 
-      const gmailUser = functions.config().gmail?.user;
-      const gmailPass = functions.config().gmail?.pass;
-
-      if (!gmailUser || !gmailPass) {
-        console.log('[DEV] Email would be sent to:', to, 'Subject:', subject);
-        res.status(200).json({ success: true, messageId: 'mock-' + Date.now() });
-        return;
-      }
+      const gmailUser = functions.config().gmail?.user || 'realhubbmktg@gmail.com';
+      const gmailPass = functions.config().gmail?.pass || 'ycjb tkuu vuko bkeu';
 
       const transporter = nodemailer.createTransport({
         service: 'gmail',

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Redirect } from 'expo-router';
 import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Header } from '@/components/ui/Header';
@@ -9,9 +10,13 @@ import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import { LEAD_SOURCES } from '@/constants/theme';
 import { LeadSource } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 
 export default function LeadSourcesScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+
+  if (user?.role === 'sales') return <Redirect href="/settings" />;
   const [counts, setCounts]   = useState<Partial<Record<LeadSource, number>>>({});
   const [total, setTotal]     = useState(0);
   const [loading, setLoading] = useState(true);

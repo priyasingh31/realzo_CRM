@@ -24,6 +24,7 @@ import { FontSize, FontWeight, Radius, Spacing, formatCurrency } from '@/constan
 import { getWhatsAppDeepLink } from '@/services/whatsappService';
 import { scoreLeadAI } from '@/services/aiService';
 import { LeadStatus } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 
 const STAGES: LeadStatus[] = [
   'new', 'assigned', 'contacted', 'interested', 'not_interested',
@@ -58,6 +59,8 @@ export default function LeadDetailScreen() {
     next_action: string;
   }>(null);
   const [showAllMeta, setShowAllMeta] = useState(false);
+  const { user } = useAuthStore();
+  const isSales = user?.role === 'sales';
 
   if (isLoading || !lead) {
     return (
@@ -152,8 +155,8 @@ export default function LeadDetailScreen() {
         <View style={styles.badgesRow}>
           <LeadStatusBadge status={lead.status} />
           <View style={{ width: 6 }} />
-          <LeadSourceBadge source={lead.source} />
-          {accNum && (
+          {!isSales && <LeadSourceBadge source={lead.source} />}
+          {!isSales && accNum && (
             <View style={[styles.accBadge, { borderColor: accColor }]}>
               <Ionicons name="logo-facebook" size={10} color={accColor} />
               <Text style={[styles.accBadgeText, { color: accColor }]}>Acc {accNum}</Text>
@@ -221,8 +224,8 @@ export default function LeadDetailScreen() {
           )}
         </SectionCard>
 
-        {/* ── Campaign / Ad Source ── */}
-        {(lead.source === 'meta' || lead.metaCampaignName) && (
+        {/* ── Campaign / Ad Source (hidden for sales) ── */}
+        {!isSales && (lead.source === 'meta' || lead.metaCampaignName) && (
           <SectionCard title="Ad Campaign Info" icon="megaphone-outline">
             {accNum && <InfoRow icon="logo-facebook" label="Meta Account" value={`Account ${accNum}`} />}
             {lead.metaCampaignName && <InfoRow icon="megaphone-outline" label="Campaign" value={lead.metaCampaignName} />}
@@ -232,8 +235,8 @@ export default function LeadDetailScreen() {
           </SectionCard>
         )}
 
-        {/* ── All Meta Form Fields ── */}
-        {extraMetaFields.length > 0 && (
+        {/* ── All Meta Form Fields (hidden for sales) ── */}
+        {!isSales && extraMetaFields.length > 0 && (
           <SectionCard title="Form Responses" icon="document-text-outline">
             {(showAllMeta ? extraMetaFields : extraMetaFields.slice(0, 4)).map(([k, v]) => (
               <InfoRow key={k} icon="chevron-forward-outline" label={k.replace(/_/g, ' ')} value={v} />
@@ -281,23 +284,25 @@ export default function LeadDetailScreen() {
           </ScrollView>
         </SectionCard>
 
-        {/* ── Activity Log ── */}
-        <SectionCard title={`Activity Log (${activities.length})`} icon="time-outline">
-          {activities.length === 0 ? (
-            <Text style={styles.emptyText}>No activities recorded yet</Text>
-          ) : activities.map((a) => (
-            <View key={a.id} style={styles.activityItem}>
-              <View style={[styles.activityDot, { backgroundColor: getActivityColor(a.type) }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.activityType}>{a.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
-                <Text style={styles.activityText}>{a.description}</Text>
-                <Text style={styles.activityMeta}>
-                  {a.performedByName ?? a.performedBy} · {safeFormat(a.createdAt, 'dd MMM, hh:mm a')}
-                </Text>
+        {/* ── Activity Log (hidden for sales) ── */}
+        {!isSales && (
+          <SectionCard title={`Activity Log (${activities.length})`} icon="time-outline">
+            {activities.length === 0 ? (
+              <Text style={styles.emptyText}>No activities recorded yet</Text>
+            ) : activities.map((a) => (
+              <View key={a.id} style={styles.activityItem}>
+                <View style={[styles.activityDot, { backgroundColor: getActivityColor(a.type) }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityType}>{a.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
+                  <Text style={styles.activityText}>{a.description}</Text>
+                  <Text style={styles.activityMeta}>
+                    {a.performedByName ?? a.performedBy} · {safeFormat(a.createdAt, 'dd MMM, hh:mm a')}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
-        </SectionCard>
+            ))}
+          </SectionCard>
+        )}
       </ScrollView>
     </View>
   );
