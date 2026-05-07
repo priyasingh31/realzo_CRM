@@ -74,13 +74,13 @@
 - `Splash Screen (solid brand green #1A9B6C background)` --conceptually_related_to--> `Relazo CRM â€” Real Estate CRM App`  [INFERRED]
   assets/splash.png → README.md
 - `Android Notification Icon (solid brand green #1A9B6C)` --conceptually_related_to--> `Relazo CRM â€” Real Estate CRM App`  [INFERRED]
-  assets/notification-icon.png → README.md
+  assets/notification-Fav.png → README.md
 - `Splash Screen (solid brand green #1A9B6C background)` --conceptually_related_to--> `Brand Primary Color #1A9B6C (CTAs, buttons, active states)`  [INFERRED]
   assets/splash.png → README.md
 - `Android Notification Icon (solid brand green #1A9B6C)` --conceptually_related_to--> `Brand Primary Color #1A9B6C (CTAs, buttons, active states)`  [INFERRED]
-  assets/notification-icon.png → README.md
+  assets/notification-Fav.png → README.md
 - `Relazo App Icon (solid brand green #1A9B6C)` --conceptually_related_to--> `Relazo CRM â€” Real Estate CRM App`  [INFERRED]
-  assets/icon.png → README.md
+  assets/Fav.png → README.md
 
 ## Communities
 
