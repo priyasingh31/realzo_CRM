@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/colors';
@@ -54,6 +56,9 @@ export default function SettingsScreen() {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  const [managerName, setManagerName] = useState<string>('—');
+  const [assignedProject, setAssignedProject] = useState<string>('—');
+
   const accounts = getAccountsSummary();
   const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
@@ -62,6 +67,49 @@ export default function SettingsScreen() {
     loadSyncStatus();
     loadMetaConnection();
   }, []);
+
+  useEffect(() => {
+    if (user?.role !== 'sales' || !user.uid) return;
+    loadSalesProfile();
+  }, [user?.uid]);
+
+  const loadSalesProfile = async () => {
+    if (!user || user.role !== 'sales') return;
+
+    // ── Assigned projects ──────────────────────────────────────────────────────
+    try {
+      const projectSnap = await getDocs(
+        query(collection(db, 'projects'), where('salesPersonIds', 'array-contains', user.uid))
+      );
+      const projectNames = projectSnap.docs.map(d => (d.data() as any).name as string).filter(Boolean);
+      setAssignedProject(projectNames.length ? projectNames.join(', ') : '—');
+
+      // Layer 1: get managerName from the project whose managerId matches the
+      // sales user's own managerId (same logic the admin panel uses at users.tsx:280)
+      if (user.managerId) {
+        const matchedProject = projectSnap.docs.find(
+          d => (d.data() as any).managerId === user.managerId
+        );
+        const nameFromProject = (matchedProject?.data() as any)?.managerName as string | undefined;
+        if (nameFromProject) setManagerName(nameFromProject);
+      }
+    } catch (_) {}
+
+    // ── Manager name: direct document read (Layer 2 — overrides project value) ─
+    // managerId on the sales user's Firestore doc is the manager's Firebase Auth
+    // UID, which is also the Firestore document ID in the users collection.
+    if (user.managerId) {
+      try {
+        const managerSnap = await getDoc(doc(db, 'users', user.managerId));
+        if (managerSnap.exists()) {
+          const name = (managerSnap.data() as any).displayName as string | undefined;
+          if (name) setManagerName(name);
+        }
+      } catch (_) {
+        // Security rules may block reading another user's document — Layer 1 covers this
+      }
+    }
+  };
 
   const loadMetaConnection = async () => {
     try {
@@ -221,6 +269,8 @@ export default function SettingsScreen() {
     }
   };
 
+  const isSales = user?.role === 'sales';
+
   const roleLabel =
     user?.role === 'admin' ? 'Administrator'
     : user?.role === 'manager' ? 'Manager'
@@ -234,7 +284,7 @@ export default function SettingsScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       {/* ── Header ── */}
       <LinearGradient colors={[Colors.navy, '#1A2F45']} style={styles.header}>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{isSales ? 'Profile' : 'Settings'}</Text>
       </LinearGradient>
 
       <ScrollView
@@ -254,18 +304,66 @@ export default function SettingsScreen() {
               <Text style={[styles.roleText, { color: roleColor }]}>{roleLabel}</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.editBtn} activeOpacity={0.7}>
-            <Ionicons name="pencil-outline" size={16} color={Colors.gray400} />
-          </TouchableOpacity>
+          {!isSales && (
+            <TouchableOpacity onPress={() => router.push('/settings')} style={styles.editBtn} activeOpacity={0.7}>
+              <Ionicons name="pencil-outline" size={16} color={Colors.gray400} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Account ── */}
         <SectionLabel title="Account" />
-        <View style={styles.menuGroup}>
-          <MenuItem icon="person-outline" label="Edit Profile" onPress={() => {}} />
-          <MenuItem icon="lock-closed-outline" label="Change Password" onPress={() => {}} divider />
-          <MenuItem icon="notifications-outline" label="Notifications" onPress={() => {}} divider />
-        </View>
+        {isSales ? (
+          <View style={styles.profileDetailsCard}>
+            <ProfileDetailRow icon="person-outline" label="Name" value={user?.displayName ?? '—'} />
+            <ProfileDetailRow icon="mail-outline" label="Email Id" value={user?.email ?? '—'} divider />
+            <ProfileDetailRow icon="card-outline" label="Emp Id" value={user?.uid ?? '—'} divider />
+            <ProfileDetailRow icon="people-outline" label="Manager" value={managerName} divider />
+            <ProfileDetailRow icon="business-outline" label="Project" value={assignedProject} divider />
+          </View>
+        ) : (
+          <View style={styles.menuGroup}>
+            <MenuItem icon="person-outline" label="Edit Profile" onPress={() => {}} />
+            <MenuItem icon="lock-closed-outline" label="Change Password" onPress={() => {}} divider />
+            <MenuItem icon="notifications-outline" label="Notifications" onPress={() => {}} divider />
+          </View>
+        )}
+
+        {/* ── CRM Settings (admin/manager only) ── */}
+        {!isSales && (
+          <>
+            <SectionLabel title="CRM Settings" />
+            <View style={styles.menuGroup}>
+              <MenuItem
+                icon="people-outline"
+                label="Manage Team"
+                onPress={() => router.push('/team')}
+                access={['admin', 'manager']}
+                userRole={user?.role}
+              />
+              <MenuItem
+                icon="git-branch-outline"
+                label="Projects & Lead Routing"
+                onPress={() => router.push('/settings/projects')}
+                divider
+                access={['admin']}
+                userRole={user?.role}
+              />
+              <MenuItem
+                icon="funnel-outline"
+                label="Pipeline Stages"
+                onPress={() => router.push('/settings/pipeline')}
+                divider
+              />
+              <MenuItem
+                icon="layers-outline"
+                label="Lead Sources"
+                onPress={() => router.push('/settings/sources')}
+                divider
+              />
+            </View>
+          </>
+        )}
 
         {/* ── Meta Ads Account ── */}
         {isAdminOrManager && (
@@ -480,6 +578,22 @@ function SyncRow({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+function ProfileDetailRow({
+  icon, label, value, divider = false,
+}: {
+  icon: string; label: string; value: string; divider?: boolean;
+}) {
+  return (
+    <View style={[styles.profileDetailRow, divider && styles.profileDetailRowDivider]}>
+      <View style={styles.menuIconWrap}>
+        <Ionicons name={icon as any} size={17} color={Colors.primary} />
+      </View>
+      <Text style={styles.profileDetailLabel}>{label}</Text>
+      <Text style={styles.profileDetailValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
 // ─── Shared sub-components ────────────────────────────────────────────────────
 function SectionLabel({ title }: { title: string }) {
   return (
@@ -636,6 +750,41 @@ const styles = StyleSheet.create({
     color: Colors.gray400,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+
+  // Profile details card (sales role)
+  profileDetailsCard: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  profileDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 14,
+    gap: Spacing.md,
+  },
+  profileDetailRowDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.gray200,
+  },
+  profileDetailLabel: {
+    width: 64,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.gray500,
+    flexShrink: 0,
+  },
+  profileDetailValue: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.gray800,
+    textAlign: 'right',
   },
 
   // Menu group

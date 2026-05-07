@@ -24,9 +24,12 @@ function safeFormatDate(val: unknown, fmt: string, fallback = ''): string {
   const d = toDate(val);
   return d ? format(d, fmt) : fallback;
 }
-import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
+import { sendLocalNotification } from '@/services/notificationService';
+import { sendStatusChangeEmail } from '@/services/emailService';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import { isWeb, WEB_MAX_WIDTH } from '@/utils/responsive';
@@ -249,7 +252,7 @@ export default function LeadsScreen() {
           <Ionicons name="search-outline" size={18} color={Colors.gray400} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search name, phone, agent or campaign..."
+            placeholder="Search name, phone"
             value={search}
             onChangeText={setSearch}
             placeholderTextColor={Colors.gray400}
@@ -261,25 +264,27 @@ export default function LeadsScreen() {
           )}
         </View>
 
-        {/* Source Filter Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.sourceTabs}
-          contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: Spacing.sm, alignItems: 'center' }}
-        >
-          {sourceFilters.map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.sourceTab, sourceFilter === f.key && { backgroundColor: f.color, borderColor: f.color }]}
-              onPress={() => setSourceFilter(prev => prev === f.key ? 'all' : f.key)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={f.icon as any} size={13} color={sourceFilter === f.key ? Colors.white : f.color} />
-              <Text style={[styles.sourceTabText, sourceFilter === f.key && { color: Colors.white }]}>{f.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Source Filter Tabs — hidden for sales */}
+        {role !== 'sales' && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.sourceTabs}
+            contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: Spacing.sm, alignItems: 'center' }}
+          >
+            {sourceFilters.map(f => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.sourceTab, sourceFilter === f.key && { backgroundColor: f.color, borderColor: f.color }]}
+                onPress={() => setSourceFilter(prev => prev === f.key ? 'all' : f.key)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={f.icon as any} size={13} color={sourceFilter === f.key ? Colors.white : f.color} />
+                <Text style={[styles.sourceTabText, sourceFilter === f.key && { color: Colors.white }]}>{f.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Status Filter Chips */}
         <ScrollView
@@ -377,6 +382,8 @@ const META_PAGE_LABELS: Record<string, string> = {
 // ─── Lead Row ─────────────────────────────────────────────────────────────────
 function LeadRow({ lead, onPress, onCRM }: { lead: Lead; onPress: () => void; onCRM: () => void }) {
   const cfg = STATUS_CONFIG[lead.status] ?? STATUS_CONFIG.new;
+  const { user: currentUser } = useAuthStore();
+  const isSalesUser = currentUser?.role === 'sales';
   const sourceColor: Record<string, string> = {
     meta: '#1877F2', google: '#EA4335', uploaded: '#F59E0B', whatsapp: '#25D366',
     referral: Colors.primary, website: '#8B5CF6',
@@ -423,14 +430,17 @@ function LeadRow({ lead, onPress, onCRM }: { lead: Lead; onPress: () => void; on
 
           {/* Row 3: Source + campaign */}
           <View style={styles.leadMeta}>
-            <View style={[styles.sourceTag, { borderColor: srcColor }]}>
-              <Ionicons name={sourceIcon} size={10} color={srcColor} />
-              <Text style={[styles.sourceTagText, { color: srcColor }]}>
-                {lead.source === 'meta'
-                  ? `Meta Acc ${acc}${pageName ? ` · ${pageName}` : ''}`
-                  : lead.source}
-              </Text>
-            </View>
+            {/* Source tag — hidden for sales */}
+            {!isSalesUser && (
+              <View style={[styles.sourceTag, { borderColor: srcColor }]}>
+                <Ionicons name={sourceIcon} size={10} color={srcColor} />
+                <Text style={[styles.sourceTagText, { color: srcColor }]}>
+                  {lead.source === 'meta'
+                    ? `Meta Acc ${acc}${pageName ? ` · ${pageName}` : ''}`
+                    : lead.source}
+                </Text>
+              </View>
+            )}
 
             {lead.metaCampaignName ? (
               <View style={styles.campaignRow}>
@@ -483,6 +493,7 @@ function CRMModal({
   currentUserName: string;
   currentUserRole: string;
 }) {
+  const { user } = useAuthStore();
   const [comments, setComments] = useState<LeadComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [status, setStatus] = useState<LeadStatus>(lead.status);
@@ -519,26 +530,75 @@ function CRMModal({
   const saveChanges = async () => {
     setSaving(true);
     try {
-      const today = new Date().toISOString().split('T')[0]; // 'yyyy-MM-dd'
+      const today = new Date().toISOString().split('T')[0];
       const updates: Partial<Lead> = {
         status,
         followUpDate: followUpDate || null,
         visitDate: visitDate || null,
         updatedAt: new Date().toISOString(),
-        // Stamp closureDate the first time a lead is marked closed_won
         ...(status === 'closed_won' && !lead.closureDate ? { closureDate: today } : {}),
       };
       await updateDoc(doc(db, 'leads', lead.id), updates as Record<string, unknown>);
 
-      // Log activity
       if (status !== lead.status) {
+        const oldLabel = STATUS_CONFIG[lead.status]?.label ?? lead.status;
+        const newLabel = STATUS_CONFIG[status]?.label ?? status;
+
         await addDoc(collection(db, 'leads', lead.id, 'activities'), {
           type: 'status_change',
-          description: `Status changed from ${STATUS_CONFIG[lead.status]?.label} to ${STATUS_CONFIG[status]?.label}`,
+          description: `Status changed from ${oldLabel} to ${newLabel}`,
           performedBy: currentUserId,
           performedByName: currentUserName,
           createdAt: new Date().toISOString(),
         });
+
+        // Notify the sales person who made the change
+        if (currentUserRole === 'sales') {
+          // Local notification — immediate, works in foreground and Expo Go
+          sendLocalNotification(
+            '✅ Lead Status Updated',
+            `${lead.name}: ${oldLabel} → ${newLabel}`,
+            { type: 'status_change', leadId: lead.id },
+            'general'
+          ).catch(console.error);
+
+          // Remote push via Expo Push Service — appears on lock screen even when app is closed
+          if (user?.pushToken) {
+            const fns = getFunctions();
+            const sendPush = httpsCallable(fns, 'sendPushNotification');
+            sendPush({
+              token: user.pushToken,
+              title: '✅ Lead Status Updated',
+              body: `${lead.name}: ${oldLabel} → ${newLabel}`,
+              notifData: { type: 'status_change', leadId: lead.id },
+              channelId: 'general',
+            }).catch(console.error);
+          }
+
+          // Firestore notification record (shows in Notifications tab)
+          addDoc(collection(db, 'notifications'), {
+            title: 'Lead Status Updated',
+            body: `You changed ${lead.name}'s status to ${newLabel}`,
+            type: 'status_change',
+            leadId: lead.id,
+            userId: currentUserId,
+            read: false,
+            createdAt: serverTimestamp(),
+          }).catch(console.error);
+
+          // Email confirmation to the sales person
+          if (user?.email) {
+            sendStatusChangeEmail(
+              user.email,
+              currentUserName,
+              lead.name,
+              oldLabel,
+              newLabel,
+              lead.id,
+              currentUserId
+            ).catch(console.error);
+          }
+        }
       }
       onClose();
     } catch (e) { console.error(e); }
@@ -669,7 +729,7 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   addBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray50, marginHorizontal: Spacing.base, marginVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.lg, gap: 8, borderWidth: 1, borderColor: Colors.gray200 },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: FontSize.sm, color: Colors.gray800 },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: FontSize.sm, color: Colors.gray800, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   // Horizontal filter rows — fixed height, never flex-shrink
   sourceTabs: { flexShrink: 0, paddingVertical: Spacing.xs },
   sourceTab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 7, borderRadius: Radius.full, backgroundColor: Colors.gray50, borderWidth: 1, borderColor: Colors.gray200 },

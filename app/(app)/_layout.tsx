@@ -123,6 +123,7 @@ export default function AppLayout() {
   const isAdmin   = role === 'admin';
   const isManager = role === 'manager';
   const isMIS     = role === 'mis';
+  const isSales   = role === 'sales';
 
   return (
     <Tabs
@@ -183,18 +184,31 @@ export default function AppLayout() {
       <Tabs.Screen
         name="settings/index"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
+          title: isSales ? 'Profile' : 'Settings',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name={isSales ? 'person-outline' : 'settings-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="pipeline/index"
+        options={{
+          title: 'Pipeline',
+          href: isSales ? null : undefined,
+          tabBarIcon: ({ color, size }) => <Ionicons name="git-branch-outline" size={size} color={color} />,
         }}
       />
       {/* Hidden screens */}
       <Tabs.Screen name="settings/projects"     options={{ href: null }} />
+      <Tabs.Screen name="settings/pipeline"     options={{ href: null }} />
+      <Tabs.Screen name="settings/sources"      options={{ href: null }} />
       <Tabs.Screen name="leads/[id]"            options={{ href: null }} />
       <Tabs.Screen name="leads/new"             options={{ href: null }} />
       <Tabs.Screen name="properties/index"      options={{ href: null }} />
       <Tabs.Screen name="properties/[id]"       options={{ href: null }} />
       <Tabs.Screen name="properties/new"        options={{ href: null }} />
       <Tabs.Screen name="team/[managerId]"      options={{ href: null }} />
+      <Tabs.Screen name="team/users"            options={{ href: null }} />
       <Tabs.Screen name="team/agent/[agentId]"  options={{ href: null }} />
     </Tabs>
   );
