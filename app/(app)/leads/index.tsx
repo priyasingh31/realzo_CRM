@@ -46,7 +46,10 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
   closed_won:            { label: 'Closed Won',      color: '#16A34A', bg: '#DCFCE7' },
   dead:                  { label: 'Dead',            color: '#6B7280', bg: '#F3F4F6' },
   invalid:               { label: 'Invalid',         color: '#9CA3AF', bg: '#F9FAFB' },
-  qualified:             { label: 'Qualified',        color: '#0D9488', bg: '#CCFBF1' },
+  qualified:             { label: 'Qualified',       color: '#0D9488', bg: '#CCFBF1' },
+  rnr:                   { label: 'RNR',             color: '#B45309', bg: '#FEF3C7' },
+  switch_off:            { label: 'Switch Off',      color: '#6B21A8', bg: '#F3E8FF' },
+           
 };
 
 type SourceFilterKey = LeadSource | 'all' | 'meta_1' | 'meta_2' | 'meta_3';
@@ -302,7 +305,16 @@ export default function LeadsScreen() {
               </Text>
             </TouchableOpacity>
           )}
-          {(['new','assigned','contacted','interested','follow_up','site_visit_scheduled','not_interested','dead','invalid'] as LeadStatus[]).map(s => (
+          {isAdmin && (['rnr', 'switch_off', 'closed_won'] as LeadStatus[]).map(s => (
+            <TouchableOpacity
+              key={s}
+              style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
+              onPress={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+            >
+              <Text style={[styles.chipText, statusFilter === s && { color: Colors.white }]}>{STATUS_CONFIG[s].label}</Text>
+            </TouchableOpacity>
+          ))}
+          {(['new','assigned','contacted','interested','follow_up','site_visit_scheduled','not_interested','rnr','switch_off','dead','invalid','closed_won'] as LeadStatus[]).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
