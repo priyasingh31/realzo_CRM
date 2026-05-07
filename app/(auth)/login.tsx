@@ -68,10 +68,11 @@ export default function LoginScreen() {
         >
           {/* Logo */}
           <View style={styles.logoWrap}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoChar}>R</Text>
-            </View>
-            <Text style={styles.logoName}>Relazo CRM</Text>
+            <Image
+              source={require('../../assets/relazo_white_bg_logo.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
             <Text style={styles.logoTagline}>Real Estate Intelligence Platform</Text>
           </View>
 
@@ -191,14 +192,7 @@ const styles = StyleSheet.create({
     ...(isWeb && { alignItems: 'center' } as any),
   },
   logoWrap: { alignItems: 'center', marginBottom: Spacing['2xl'], width: '100%' },
-  logoCircle: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  logoChar: { fontSize: FontSize['4xl'], fontWeight: FontWeight.bold, color: Colors.white },
-  logoName: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.white },
+  logoImg: { width: 200, height: 66, marginBottom: Spacing.sm },
   logoTagline: { fontSize: FontSize.sm, color: Colors.white + '99', marginTop: 4 },
 
   card: {
