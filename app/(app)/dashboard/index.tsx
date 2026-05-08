@@ -202,7 +202,7 @@ function SalesDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text style={sStyles.closuresLabel}>Total Closures</Text>
                   <Text style={sStyles.closuresValue}>{metrics?.closedThisMonth ?? 0}</Text>
-                  <Text style={sStyles.closuresSub}>Closed Won</Text>
+                  <Text style={sStyles.closuresSub}>Booked</Text>
                 </View>
                 <Ionicons name="trophy-outline" size={44} color="rgba(255,255,255,0.2)" />
               </LinearGradient>

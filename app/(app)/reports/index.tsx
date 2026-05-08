@@ -77,9 +77,9 @@ export default function ReportsScreen() {
   // Overall metrics
   const overview = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const closed = filteredLeads.filter((l: Lead) => l.status === 'closed_won').length;
+    const closed = filteredLeads.filter((l: Lead) => l.status === 'Booked').length;
     const missed = filteredLeads.filter((l: Lead) =>
-      l.followUpDate && l.followUpDate < today && !['closed_won','dead','invalid'].includes(l.status)
+      l.followUpDate && l.followUpDate < today && !['Booked','EOICustomer','invalid'].includes(l.status)
     ).length;
     const convRate = filteredLeads.length > 0 ? (closed / filteredLeads.length * 100).toFixed(1) : '0';
 
@@ -97,9 +97,9 @@ export default function ReportsScreen() {
     const out: Record<string, SalesStats> = {};
     for (const sp of salesPersons) {
       const agLeads = filteredLeads.filter((l: Lead) => l.assignedTo === sp.uid);
-      const closed = agLeads.filter((l: Lead) => l.status === 'closed_won').length;
+      const closed = agLeads.filter((l: Lead) => l.status === 'Booked').length;
       const missed = agLeads.filter((l: Lead) =>
-        l.followUpDate && l.followUpDate < today && !['closed_won','dead','invalid'].includes(l.status)
+        l.followUpDate && l.followUpDate < today && !['Booked','EOICustomer','invalid'].includes(l.status)
       ).length;
       out[sp.uid] = {
         totalLeads: agLeads.length,
@@ -144,7 +144,7 @@ export default function ReportsScreen() {
           const leads = acc === null
             ? filteredLeads.filter((l: Lead) => l.source === 'google')
             : filteredLeads.filter((l: Lead) => l.source === 'meta' && l.metaAccount === acc);
-          const closed = leads.filter((l: Lead) => l.status === 'closed_won').length;
+          const closed = leads.filter((l: Lead) => l.status === 'Booked').length;
           const newToday = leads.filter((l: Lead) => format(new Date(l.createdAt), 'yyyy-MM-dd') === today).length;
           return { label, totalLeads: leads.length, newToday, cpl, convRate: leads.length > 0 ? (closed / leads.length * 100).toFixed(1) : '0' };
         };
@@ -182,7 +182,7 @@ export default function ReportsScreen() {
       const count = acc !== null
         ? filteredLeads.filter((l: Lead) => l.source === 'meta' && l.metaAccount === acc).length
         : filteredLeads.filter((l: Lead) => l.source === 'google').length;
-      const closed = filteredLeads.filter((l: Lead) => (acc !== null ? l.source === 'meta' && l.metaAccount === acc : l.source === 'google') && l.status === 'closed_won').length;
+      const closed = filteredLeads.filter((l: Lead) => (acc !== null ? l.source === 'meta' && l.metaAccount === acc : l.source === 'google') && l.status === 'Booked').length;
       const conv = count > 0 ? (closed / count * 100).toFixed(1) : '0';
       const cpl = acc !== null ? 150 : 200;
       return `<tr><td>${label}</td><td>${count}</td><td>${closed}</td><td>${conv}%</td><td>₹${cpl}</td><td>₹${count * cpl}</td></tr>`;
@@ -510,7 +510,7 @@ export default function ReportsScreen() {
                         ? filteredLeads.filter((l: Lead) => l.source === 'meta' && l.metaAccount === acc).length
                         : filteredLeads.filter((l: Lead) => l.source === 'google').length;
                       const closed = filteredLeads.filter((l: Lead) =>
-                        (acc !== null ? l.source === 'meta' && l.metaAccount === acc : l.source === 'google') && l.status === 'closed_won'
+                        (acc !== null ? l.source === 'meta' && l.metaAccount === acc : l.source === 'google') && l.status === 'Booked'
                       ).length;
                       return (
                         <View key={label} style={styles.reportTableRow}>

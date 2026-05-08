@@ -201,7 +201,7 @@ export default function NotificationsScreen() {
       .filter(l => {
         if (!l.assignedTo) return false;
         // Exclude only terminal statuses — follow_up, negotiation etc. can still be missed
-        if (['closed_won', 'dead', 'invalid'].includes(l.status)) return false;
+        if (['Booked', 'EOICustomer', 'invalid'].includes(l.status)) return false;
         const ref = l.updatedAt ?? l.createdAt;
         return now - new Date(ref).getTime() > TEN_MIN_MS;
       })

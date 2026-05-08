@@ -78,8 +78,8 @@ export async function updateLeadStatus(id: string, status: LeadStatus, existingC
     status,
     updatedAt: serverTimestamp(),
     ...(status === 'contacted' ? { lastContactedAt: serverTimestamp() } : {}),
-    // Stamp closureDate the first time a lead is marked closed_won
-    ...(status === 'closed_won' && !existingClosureDate ? { closureDate: today } : {}),
+    // Stamp closureDate the first time a lead is marked Booked
+    ...(status === 'Booked' && !existingClosureDate ? { closureDate: today } : {}),
   });
 }
 

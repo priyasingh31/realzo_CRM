@@ -2693,7 +2693,7 @@
       "norm_label": "lead management feature (crud, ai scoring, status tracking, activity log)"
     },
     {
-      "label": "Kanban Pipeline (6-stage deal board: New \u00e2\u2020\u2019 Closed Won/Lost)",
+      "label": "Kanban Pipeline (6-stage deal board: New \u00e2\u2020\u2019 Booked/Lost)",
       "file_type": "document",
       "source_file": "README.md",
       "source_location": null,
@@ -2703,7 +2703,7 @@
       "contributor": null,
       "id": "readme_kanban_pipeline",
       "community": 0,
-      "norm_label": "kanban pipeline (6-stage deal board: new a\u2020\u2019 closed won/lost)"
+      "norm_label": "kanban pipeline (6-stage deal board: new a\u2020\u2019 Booked/lost)"
     },
     {
       "label": "Property Listings (grid/list view, image gallery, availability management)",

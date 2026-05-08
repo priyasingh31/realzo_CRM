@@ -273,7 +273,7 @@ Cohesion: 1.0
 Nodes (0): 
 
 ## Knowledge Gaps
-- **5 isolated node(s):** `React Hook Form + Zod`, `Kanban Pipeline (6-stage deal board: New â†’ Closed Won/Lost)`, `Property Listings (grid/list view, image gallery, availability management)`, `Brand Navy #0D1B2A (Headers, backgrounds)`, `Brand Accent #F59E0B (Warnings, highlights)`
+- **5 isolated node(s):** `React Hook Form + Zod`, `Kanban Pipeline (6-stage deal board: New â†’ Booked/Lost)`, `Property Listings (grid/list view, image gallery, availability management)`, `Brand Navy #0D1B2A (Headers, backgrounds)`, `Brand Accent #F59E0B (Warnings, highlights)`
   These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Pipeline Index`** (2 nodes): `index.tsx`, `Index()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -335,7 +335,7 @@ _Questions this graph is uniquely positioned to answer:_
   _`Relazo CRM â€” Real Estate CRM App` has 5 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 3 inferred relationships involving `syncConnectedPages()` (e.g. with `triggerBackgroundSync()` and `handleConnectMeta()`) actually correct?**
   _`syncConnectedPages()` has 3 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `React Hook Form + Zod`, `Kanban Pipeline (6-stage deal board: New â†’ Closed Won/Lost)`, `Property Listings (grid/list view, image gallery, availability management)` to the rest of the system?**
+- **What connects `React Hook Form + Zod`, `Kanban Pipeline (6-stage deal board: New â†’ Booked/Lost)`, `Property Listings (grid/list view, image gallery, availability management)` to the rest of the system?**
   _5 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Brand Assets & Icons` be split into smaller, more focused modules?**
   _Cohesion score 0.1 - nodes in this community are weakly interconnected._

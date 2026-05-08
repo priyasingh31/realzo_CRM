@@ -54,8 +54,8 @@ export type LeadStatus =
   | 'site_visit_scheduled'
   | 'site_visit_done'
   | 'negotiation'
-  | 'closed_won'
-  | 'dead'
+  | 'Booked'
+  | 'EOICustomer'
   | 'invalid'
   | 'qualified'
   | 'rnr'
@@ -128,7 +128,7 @@ export interface LeadActivity {
 }
 
 // ─── Deal ────────────────────────────────────────────────────────────────────
-export type DealStage = 'new' | 'contacted' | 'site_visit' | 'negotiation' | 'closed_won' | 'closed_lost';
+export type DealStage = 'new' | 'contacted' | 'site_visit' | 'negotiation' | 'Booked' | 'closed_lost';
 
 export interface Deal {
   id: string;
@@ -240,7 +240,7 @@ export interface AgentPerformance {
   leadsFromUploaded: number;
   interested: number;
   notInterested: number;
-  dead: number;
+  EOICustomer: number;
   invalid: number;
   siteVisits: number;
   closures: number;

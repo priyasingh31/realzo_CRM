@@ -7,7 +7,7 @@ A full-featured Real Estate CRM built with **React Native + Expo**, supporting *
 ## ✨ Features
 
 - **Lead Management** — Full CRUD, AI scoring, status tracking, activity log
-- **Kanban Pipeline** — Drag-free deal board with 6 stages (New → Closed Won/Lost)
+- **Kanban Pipeline** — Drag-free deal board with 6 stages (New → Booked/Lost)
 - **Property Listings** — Grid/list view, image gallery, availability management
 - **Reports & Analytics** — KPIs, conversion rate, revenue, AI-powered insights
 - **Role-Based Access** — Admin / Manager / Agent permissions (UI + Firestore rules)
@@ -323,7 +323,7 @@ Get your Gemini API key at: [aistudio.google.com](https://aistudio.google.com)
 | `primary` | `#1A9B6C` | CTAs, buttons, active states |
 | `navy` | `#0D1B2A` | Headers, backgrounds |
 | `accent` | `#F59E0B` | Warnings, highlights |
-| `success` | `#10B981` | Closed won, available |
+| `success` | `#10B981` | Booked, available |
 | `danger` | `#EF4444` | Closed lost, sold, delete |
 
 ---
