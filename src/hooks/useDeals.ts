@@ -69,7 +69,7 @@ export function useUpdateDealStage() {
 export function useKanbanDeals() {
   const { data: deals = [], ...rest } = useDeals();
 
-  const stages = ['new', 'contacted', 'site_visit', 'negotiation', 'closed_won', 'closed_lost'] as DealStage[];
+  const stages = ['new', 'contacted', 'site_visit', 'negotiation', 'Booked', 'closed_lost'] as DealStage[];
 
   const grouped = stages.reduce((acc, stage) => {
     acc[stage] = deals.filter((d) => d.stage === stage);

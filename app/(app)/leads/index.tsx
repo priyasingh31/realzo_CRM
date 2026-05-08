@@ -44,8 +44,8 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
   site_visit_scheduled:  { label: 'Visit Scheduled', color: '#0891B2', bg: '#CFFAFE' },
   site_visit_done:       { label: 'Visit Done',      color: '#0D9488', bg: '#CCFBF1' },
   negotiation:           { label: 'Negotiation',     color: '#EA580C', bg: '#FFEDD5' },
-  closed_won:            { label: 'Closed Won',      color: '#16A34A', bg: '#DCFCE7' },
-  dead:                  { label: 'Dead',            color: '#6B7280', bg: '#F3F4F6' },
+  Booked:            { label: 'Booked',      color: '#16A34A', bg: '#DCFCE7' },
+  EOICustomer:                  { label: 'EOICustomer',            color: '#6B7280', bg: '#F3F4F6' },
   invalid:               { label: 'Invalid',         color: '#9CA3AF', bg: '#F9FAFB' },
   qualified:             { label: 'Qualified',       color: '#0D9488', bg: '#CCFBF1' },
   rnr:                   { label: 'RNR',             color: '#B45309', bg: '#FEF3C7' },
@@ -84,6 +84,7 @@ export default function LeadsScreen() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all' | 'unassigned'>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showCRMModal, setShowCRMModal] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [assignTarget, setAssignTarget] = useState<Lead | null>(null);
 
   const role    = user?.role;
@@ -162,7 +163,7 @@ export default function LeadsScreen() {
     if (params.filter === 'missed') {
       const fupStr = safeFormatDate(lead.followUpDate, 'yyyy-MM-dd');
       if (!fupStr || fupStr >= today) return false;
-      if (['closed_won', 'dead', 'invalid'].includes(lead.status)) return false;
+      if (['Booked', 'EOICustomer', 'invalid'].includes(lead.status)) return false;
     }
     // 'visits' and 'followup' are handled entirely by statusFilter above
 
@@ -286,48 +287,105 @@ export default function LeadsScreen() {
           </ScrollView>
         )}
 
-        {/* Status Filter Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.statusChips}
-          contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: 6, alignItems: 'center' }}
-        >
-          <TouchableOpacity
-            style={[styles.chip, statusFilter === 'all' && styles.chipActive]}
-            onPress={() => setStatusFilter('all')}
-          >
-            <Text style={[styles.chipText, statusFilter === 'all' && styles.chipTextActive]}>All</Text>
-          </TouchableOpacity>
-          {isRootAdmin && (
+        {/* Status Filter — dropdown for sales, chips for admin/manager */}
+        {role === 'sales' ? (
+          <View style={styles.dropdownWrap}>
+            {/* Trigger button */}
             <TouchableOpacity
-              style={[styles.chip, statusFilter === 'unassigned' && { backgroundColor: Colors.warning, borderColor: Colors.warning }]}
-              onPress={() => setStatusFilter(s => s === 'unassigned' ? 'all' : 'unassigned')}
+              style={styles.dropdownTrigger}
+              onPress={() => setShowStatusDropdown(v => !v)}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.chipText, statusFilter === 'unassigned' && { color: Colors.white }]}>
-                Unassigned{unassignedCount > 0 ? ` (${unassignedCount})` : ''}
+              {statusFilter !== 'all' && (
+                <View style={[styles.dropdownDot, { backgroundColor: STATUS_CONFIG[statusFilter as LeadStatus]?.color ?? Colors.gray400 }]} />
+              )}
+              <Text style={styles.dropdownTriggerText}>
+                {statusFilter === 'all' ? 'All Statuses' : STATUS_CONFIG[statusFilter as LeadStatus]?.label ?? 'Filter'}
               </Text>
+              <Ionicons name={showStatusDropdown ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.gray500} />
             </TouchableOpacity>
-          )}
-          {isAdmin && (['rnr', 'switch_off', 'closed_won'] as LeadStatus[]).map(s => (
+
+            {/* Dropdown list */}
+            {showStatusDropdown && (
+              <>
+                <TouchableOpacity style={styles.dropdownBackdrop} onPress={() => setShowStatusDropdown(false)} activeOpacity={1} />
+                <View style={styles.dropdownList}>
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+                    {/* All option */}
+                    <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={() => { setStatusFilter('all'); setShowStatusDropdown(false); }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.dropdownDot, { backgroundColor: Colors.gray400 }]} />
+                      <Text style={[styles.dropdownItemText, statusFilter === 'all' && { color: Colors.primary, fontWeight: FontWeight.semibold }]}>
+                        All Statuses
+                      </Text>
+                      {statusFilter === 'all' && <Ionicons name="checkmark" size={16} color={Colors.primary} />}
+                    </TouchableOpacity>
+                    {/* Status options */}
+                    {(['new','assigned','contacted','interested','follow_up','site_visit_scheduled','not_interested','rnr','switch_off','EOICustomer','invalid','Booked'] as LeadStatus[]).map(s => (
+                      <TouchableOpacity
+                        key={s}
+                        style={styles.dropdownItem}
+                        onPress={() => { setStatusFilter(statusFilter === s ? 'all' : s); setShowStatusDropdown(false); }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.dropdownDot, { backgroundColor: STATUS_CONFIG[s].color }]} />
+                        <Text style={[styles.dropdownItemText, statusFilter === s && { color: STATUS_CONFIG[s].color, fontWeight: FontWeight.semibold }]}>
+                          {STATUS_CONFIG[s].label}
+                        </Text>
+                        {statusFilter === s && <Ionicons name="checkmark" size={16} color={STATUS_CONFIG[s].color} />}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </>
+            )}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.statusChips}
+            contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: 6, alignItems: 'center' }}
+          >
             <TouchableOpacity
-              key={s}
-              style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
-              onPress={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+              style={[styles.chip, statusFilter === 'all' && styles.chipActive]}
+              onPress={() => setStatusFilter('all')}
             >
-              <Text style={[styles.chipText, statusFilter === s && { color: Colors.white }]}>{STATUS_CONFIG[s].label}</Text>
+              <Text style={[styles.chipText, statusFilter === 'all' && styles.chipTextActive]}>All</Text>
             </TouchableOpacity>
-          ))}
-          {(['new','assigned','contacted','interested','follow_up','site_visit_scheduled','not_interested','rnr','switch_off','dead','invalid','closed_won'] as LeadStatus[]).map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
-              onPress={() => setStatusFilter(statusFilter === s ? 'all' : s)}
-            >
-              <Text style={[styles.chipText, statusFilter === s && { color: Colors.white }]}>{STATUS_CONFIG[s].label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+            {isRootAdmin && (
+              <TouchableOpacity
+                style={[styles.chip, statusFilter === 'unassigned' && { backgroundColor: Colors.warning, borderColor: Colors.warning }]}
+                onPress={() => setStatusFilter(s => s === 'unassigned' ? 'all' : 'unassigned')}
+              >
+                <Text style={[styles.chipText, statusFilter === 'unassigned' && { color: Colors.white }]}>
+                  Unassigned{unassignedCount > 0 ? ` (${unassignedCount})` : ''}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {isAdmin && (['rnr', 'switch_off', 'Booked'] as LeadStatus[]).map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
+                onPress={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+              >
+                <Text style={[styles.chipText, statusFilter === s && { color: Colors.white }]}>{STATUS_CONFIG[s].label}</Text>
+              </TouchableOpacity>
+            ))}
+            {(['new','assigned','contacted','interested','follow_up','site_visit_scheduled','not_interested','rnr','switch_off','EOICustomer','invalid','Booked'] as LeadStatus[]).map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.chip, statusFilter === s && { backgroundColor: STATUS_CONFIG[s].color, borderColor: STATUS_CONFIG[s].color }]}
+                onPress={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+              >
+                <Text style={[styles.chipText, statusFilter === s && { color: Colors.white }]}>{STATUS_CONFIG[s].label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Active filter indicator */}
         {(sourceFilter !== 'all' || statusFilter !== 'all' || search) && (
@@ -565,7 +623,7 @@ function CRMModal({
         followUpDate: followUpDate || null,
         visitDate: visitDate || null,
         updatedAt: new Date().toISOString(),
-        ...(status === 'closed_won' && !lead.closureDate ? { closureDate: today } : {}),
+        ...(status === 'Booked' && !lead.closureDate ? { closureDate: today } : {}),
       };
       await updateDoc(doc(db, 'leads', lead.id), updates as Record<string, unknown>);
 
@@ -727,7 +785,13 @@ function EmptyState({ sourceFilter }: { sourceFilter: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.gray50 },
   // Fixed top section — sizes to content, never squishes
-  stickyTop: { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
+  stickyTop: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+    zIndex: 10,
+    ...(Platform.OS === 'web' ? { overflow: 'visible' } as any : {}),
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.base, paddingTop: Spacing.md, paddingBottom: Spacing.sm, backgroundColor: Colors.navy },
   headerTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.white },
   headerSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
@@ -782,6 +846,78 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.semibold, color: Colors.gray500 },
   emptySub: { fontSize: FontSize.sm, color: Colors.gray400, textAlign: 'center', paddingHorizontal: 40 },
+
+  // ── Status dropdown (sales only) ──
+  dropdownWrap: {
+    marginHorizontal: Spacing.base,
+    marginVertical: Spacing.sm,
+    zIndex: 999,
+    ...(Platform.OS === 'web' ? { overflow: 'visible' } as any : {}),
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.white,
+    alignSelf: 'flex-start',
+    minWidth: 160,
+  },
+  dropdownDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dropdownTriggerText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.gray700,
+  },
+  dropdownBackdrop: {
+    position: 'fixed' as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 998,
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: 42,
+    left: 0,
+    width: 220,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    zIndex: 9999,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 4px 16px rgba(0,0,0,0.10)' } as any : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.10,
+      shadowRadius: 12,
+      elevation: 8,
+    }),
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+  },
+  dropdownItemText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.gray700,
+  },
 });
 
 // ─── Assign Lead Modal ────────────────────────────────────────────────────────

@@ -29,14 +29,14 @@ import { useAuthStore } from '@/store/authStore';
 const STAGES: LeadStatus[] = [
   'new', 'assigned', 'contacted', 'interested', 'not_interested',
   'rnr', 'switch_off', 'follow_up', 'site_visit_scheduled', 'site_visit_done',
-  'negotiation', 'closed_won', 'dead', 'invalid',
+  'negotiation', 'Booked', 'EOICustomer', 'invalid',
 ];
 
 const STAGE_COLORS: Record<LeadStatus, string> = {
   new: '#64748B', assigned: '#7C3AED', contacted: '#2563EB',
   interested: '#059669', not_interested: '#DC2626', follow_up: '#D97706',
   site_visit_scheduled: '#0891B2', site_visit_done: '#0D9488',
-  negotiation: '#EA580C', closed_won: '#16A34A', dead: '#6B7280',
+  negotiation: '#EA580C', Booked: '#16A34A', EOICustomer : '#6B7280',
   invalid: '#9CA3AF', qualified: '#0D9488',
   rnr: '#F43F5E', switch_off: '#6366F1',
 };
@@ -144,7 +144,6 @@ export default function LeadDetailScreen() {
       <Header
         title={lead.name}
         showBack
-        rightAction={{ icon: 'share-outline', onPress: handleShare }}
       />
 
       <ScrollView

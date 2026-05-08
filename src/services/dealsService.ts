@@ -115,7 +115,7 @@ function getStageProbability(stage: DealStage): number {
     contacted: 25,
     site_visit: 50,
     negotiation: 75,
-    closed_won: 100,
+    Booked: 100,
     closed_lost: 0,
   };
   return map[stage];

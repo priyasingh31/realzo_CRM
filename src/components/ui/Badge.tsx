@@ -32,8 +32,8 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
     site_visit_scheduled: { label: 'Visit Scheduled', bg: '#CFFAFE',           color: '#0891B2' },
     site_visit_done:      { label: 'Visit Done',      bg: '#CCFBF1',           color: '#0D9488' },
     negotiation:          { label: 'Negotiation',     bg: '#FFEDD5',           color: '#EA580C' },
-    closed_won:           { label: 'Closed Won',      bg: '#DCFCE7',           color: '#16A34A' },
-    dead:                 { label: 'Dead',            bg: Colors.gray100,      color: Colors.gray500 },
+    Booked:           { label: 'Booked',      bg: '#DCFCE7',           color: '#16A34A' },
+    EOICustomer:                 { label: 'EOICustomer',            bg: Colors.gray100,      color: Colors.gray500 },
     invalid:              { label: 'Invalid',         bg: '#F9FAFB',           color: Colors.gray400 },
     qualified:            { label: 'Qualified',       bg: Colors.primaryLight, color: Colors.primary },
     rnr:                  { label: 'RNR',             bg: '#FEF9C3',           color: '#A16207' },
@@ -49,7 +49,7 @@ export function DealStageBadge({ stage }: { stage: DealStage }) {
     contacted: { label: 'Contacted', bg: '#EDE9FE', color: '#7C3AED' },
     site_visit: { label: 'Site Visit', bg: Colors.warningLight, color: Colors.warning },
     negotiation: { label: 'Negotiation', bg: '#FCE7F3', color: '#DB2777' },
-    closed_won: { label: 'Closed Won', bg: Colors.successLight, color: Colors.success },
+    Booked: { label: 'Booked', bg: Colors.successLight, color: Colors.success },
     closed_lost: { label: 'Closed Lost', bg: Colors.dangerLight, color: Colors.danger },
   };
   const { label, bg, color } = config[stage] ?? config.new;

@@ -70,7 +70,7 @@ export const DEAL_STAGES = [
   { key: 'contacted', label: 'Contacted', color: Colors.stages.contacted, icon: 'call-outline' },
   { key: 'site_visit', label: 'Site Visit', color: Colors.stages.site_visit, icon: 'location-outline' },
   { key: 'negotiation', label: 'Negotiation', color: Colors.stages.negotiation, icon: 'chatbubbles-outline' },
-  { key: 'closed_won', label: 'Closed Won', color: Colors.stages.closed_won, icon: 'checkmark-circle-outline' },
+  { key: 'Booked', label: 'Booked', color: Colors.stages.Booked, icon: 'checkmark-circle-outline' },
   { key: 'closed_lost', label: 'Closed Lost', color: Colors.stages.closed_lost, icon: 'close-circle-outline' },
 ] as const;
 

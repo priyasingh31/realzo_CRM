@@ -46,7 +46,7 @@ export const Colors = {
     contacted: '#8B5CF6',
     site_visit: '#F59E0B',
     negotiation: '#EC4899',
-    closed_won: '#22C55E',
+    Booked: '#22C55E',
     closed_lost: '#EF4444',
   },
 
