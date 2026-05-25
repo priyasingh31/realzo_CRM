@@ -24,10 +24,10 @@ function safeFormatDate(val: unknown, fmt: string, fallback = ''): string {
   const d = toDate(val);
   return d ? format(d, fmt) : fallback;
 }
-import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, getDocs, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
-import { sendLocalNotification } from '@/services/notificationService';
+import { sendLocalNotification, sendExpoPushDirect } from '@/services/notificationService';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '@/constants/theme';
 import { isWeb, WEB_MAX_WIDTH } from '@/utils/responsive';
@@ -987,17 +987,31 @@ function AssignLeadModal({
         createdAt: new Date().toISOString(),
       });
 
-      // Push notification to the assigned sales person via Cloud Function
-      await addDoc(collection(db, 'notifications'), {
+      // ── Instant push — directly to Expo API, no Cloud Function hop ──────────
+      const notifTitle = '🔔 New Lead Assigned to You!';
+      const notifBody  = `${lead.name} (${lead.phone})${note.trim() ? ` — "${note.trim()}"` : ' — Respond within 10 min!'}`;
+
+      // Fetch the sales person's push token and send immediately
+      getDoc(doc(db, 'users', assignedTo)).then(userSnap => {
+        const pushToken = userSnap.data()?.pushToken as string | undefined;
+        if (pushToken) {
+          sendExpoPushDirect(pushToken, notifTitle, notifBody, { type: 'lead_assigned', leadId: lead.id });
+        } else {
+          console.warn('[Push] No pushToken for user', assignedTo, '— token not registered yet');
+        }
+      }).catch(e => console.warn('[Push] Token fetch failed:', e));
+
+      // Write in-app notification (shows in Alerts tab)
+      addDoc(collection(db, 'notifications'), {
         type: 'lead_assigned',
         userId: assignedTo,
-        title: '🔔 New Lead Assigned to You!',
-        body: `${lead.name} (${lead.phone})${note.trim() ? ` — "${note.trim()}"` : ' — Respond within 10 minutes!'}`,
+        title: notifTitle,
+        body:  notifBody,
         leadId: lead.id,
         assignedAgent: assignedTo,
         read: false,
         createdAt: new Date().toISOString(),
-      });
+      }).catch(() => {});
 
       onClose();
     } catch (e) {

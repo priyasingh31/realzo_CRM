@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,7 +19,7 @@ import {
   WHATSAPP_ACCOUNTS,
 } from '@/services/whatsappService';
 import { getMetaSyncStatus, syncConnectedPages } from '@/services/metaLeadsService';
-import { sendLocalNotification } from '@/services/notificationService';
+import { sendLocalNotification, sendExpoPushDirect } from '@/services/notificationService';
 import {
   connectMetaAccount,
   disconnectMeta,
@@ -240,27 +240,37 @@ export default function SettingsScreen() {
     setTestingNotif(true);
     setNotifTestResult(null);
     try {
-      // Step 1: fire a local notification immediately (works in Expo Go + builds)
+      // Step 1 — local notification (visible immediately on this device)
       await sendLocalNotification(
-        '✅ Test Notification',
-        'If you see this, local notifications are working!',
+        '✅ Test — Local OK',
+        'Local notifications are working on this device.',
         { type: 'test' },
         'general'
       );
 
-      // Step 2: write a Firestore notification doc so Cloud Function sends FCM push
-      // (only works in preview/production builds with push token registered)
-      if (user?.uid) {
-        await addDoc(collection(db, 'notifications'), {
-          type: 'test',
-          userId: user.uid,
-          title: '✅ Test Push Notification',
-          body: 'FCM push notifications are working correctly!',
-          read: false,
-          createdAt: new Date().toISOString(),
+      // Step 2 — read own push token and call Expo API directly (no Cloud Function hop)
+      if (!user?.uid) throw new Error('Not signed in');
+
+      const userSnap = await getDoc(doc(db, user?.uid ? 'users' : 'x', user.uid));
+      const pushToken = userSnap.data()?.pushToken as string | undefined;
+
+      if (!pushToken) {
+        setNotifTestResult({
+          ok: false,
+          msg: 'No push token found for your account. Build the app with EAS (preview/production) — Expo Go cannot receive FCM push.',
         });
+        return;
       }
-      setNotifTestResult({ ok: true, msg: 'Local notification fired! FCM push also triggered (check notification shade).' });
+
+      await sendExpoPushDirect(
+        pushToken,
+        '✅ Test — FCM Push OK',
+        'You received this push from the Expo API directly. Full pipeline is working!',
+        { type: 'test' },
+        'general'
+      );
+
+      setNotifTestResult({ ok: true, msg: `Push sent to token: ${pushToken.slice(0, 40)}… — check notification shade.` });
     } catch (e: any) {
       setNotifTestResult({ ok: false, msg: `Failed: ${e?.message ?? String(e)}` });
     } finally {

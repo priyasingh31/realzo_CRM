@@ -69,10 +69,15 @@ export async function registerForPushNotifications(uid: string): Promise<string 
     });
   }
 
-  // Remote push token requires a real EAS build with google-services.json configured.
-  // Skip silently if project ID is missing or FCM is not initialized.
-  const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
-  if (!projectId) return null;
+  // Project ID: prefer env var, fall back to app.json extra (always available in builds)
+  const projectId =
+    process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
+    (Constants.expoConfig?.extra?.eas?.projectId as string | undefined);
+
+  if (!projectId) {
+    console.warn('[Push] No EAS project ID found — push token not registered');
+    return null;
+  }
 
   try {
     const { status } = await Notifications.requestPermissionsAsync();
@@ -91,8 +96,47 @@ export async function registerForPushNotifications(uid: string): Promise<string 
     });
     return token;
   } catch (err) {
-    console.warn('[Push] Token registration failed (need preview/production build with googleServicesFile):', err);
+    console.warn('[Push] Token registration failed:', err);
     return null;
+  }
+}
+
+// ─── Send push directly to an Expo push token — NO Cloud Function hop, instant ─
+// Calls the Expo Push API from the client. Acceptable for admin-only actions
+// (assign lead) where the caller is already authenticated.
+export async function sendExpoPushDirect(
+  pushToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+  channelId = 'new_leads'
+): Promise<void> {
+  if (!pushToken?.startsWith('ExponentPushToken')) {
+    console.warn('[Push] sendExpoPushDirect: invalid token:', pushToken);
+    return;
+  }
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        to:        pushToken,
+        title,
+        body,
+        data:      data ?? {},
+        sound:     ALERT_SOUND,
+        priority:  'high',
+        channelId,
+      }),
+    });
+    const json = await res.json() as { data?: { status: string; message?: string } };
+    if (json.data?.status === 'error') {
+      console.warn('[Push] Expo push error:', json.data.message);
+    } else {
+      console.log('[Push] Sent to', pushToken.slice(0, 30) + '…');
+    }
+  } catch (e) {
+    console.warn('[Push] sendExpoPushDirect failed:', e);
   }
 }
 
